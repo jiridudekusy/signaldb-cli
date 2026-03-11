@@ -1,0 +1,28 @@
+{
+  "name": "signal-db-cli",
+  "version": "0.1.0",
+  "description": "CLI pro práci s lokální šifrovanou databází Signal Desktop",
+  "bin": {
+    "signal-db-cli": "./signal-db-cli.js"
+  },
+  "files": [
+    "signal-db-cli.js",
+    "lib/",
+    "docs/"
+  ],
+  "keywords": [
+    "signal",
+    "signal-desktop",
+    "cli",
+    "sqlite",
+    "encrypted"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@inquirer/prompts": "^8.2.1",
+    "@signalapp/better-sqlite3": "^9.0.13",
+    "commander": "^14.0.3",
+    "dotenv": "^17.3.1",
+    "update-notifier": "^7.3.1"
+  }
+}
