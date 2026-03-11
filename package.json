@@ -18,6 +18,17 @@
     "encrypted"
   ],
   "license": "MIT",
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0",
+    "vitest": "^3.0.0"
+  },
   "dependencies": {
     "@inquirer/prompts": "^8.2.1",
     "@signalapp/better-sqlite3": "^9.0.13",
