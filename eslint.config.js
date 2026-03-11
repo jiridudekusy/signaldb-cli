@@ -16,6 +16,12 @@ module.exports = [
     },
   },
   {
+    files: ['test/**/*.js'],
+    languageOptions: {
+      sourceType: 'module',
+    },
+  },
+  {
     ignores: ['node_modules/'],
   },
 ];

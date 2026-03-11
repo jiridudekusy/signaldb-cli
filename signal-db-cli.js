@@ -85,7 +85,7 @@ program
   .option('-i, --interactive', 'interaktivní výběr (Inquirer)')
   .option('--json', 'výstup jako JSON')
   .option('-n, --limit <number>', 'limit výsledků', parseInt)
-  .hook('preAction', async () => {
+  .hook('preAction', async (_parentCommand, actionCommand) => {
     // Keep update checks centralized so every command behaves the same way.
     if (!process.env.NO_UPDATE_NOTIFIER) {
       try {
@@ -100,8 +100,11 @@ program
       }
     }
 
-    // All currently registered commands open the encrypted DB or depend on its setup.
-    checkEnv();
+    // Commands that don't need the decryption key skip the env check.
+    const cmdName = actionCommand.name();
+    if (cmdName !== 'decrypt' && cmdName !== 'manual') {
+      checkEnv();
+    }
   });
 
 // Inbox-style view: unread incoming messages with a call-follow-up hint.
@@ -468,6 +471,60 @@ program
     } else {
       console.log('Soubor docs/MANUAL.md nenalezen.');
     }
+  });
+
+// Extract the SQLCipher decryption key from Signal Desktop's config.
+program
+  .command('decrypt')
+  .description('Zjistit dešifrovací klíč z Signal Desktop (macOS)')
+  .action(async () => {
+    const crypto = require('crypto');
+    const { execSync } = require('child_process');
+    const fs = require('fs');
+
+    const signalDir =
+      process.env.SIGNAL_DIR ||
+      path.join(os.homedir(), 'Library', 'Application Support', 'Signal');
+    const configPath = path.join(signalDir, 'config.json');
+
+    if (!fs.existsSync(configPath)) {
+      console.error(`Signal config nenalezen: ${configPath}`);
+      process.exit(1);
+    }
+
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+
+    if (config.key) {
+      console.log(config.key);
+      return;
+    }
+
+    if (!config.encryptedKey) {
+      console.error('No encryptedKey or key found in config.json');
+      process.exit(1);
+    }
+
+    const encryptedBuf = Buffer.from(config.encryptedKey, 'hex');
+    const prefix = encryptedBuf.slice(0, 3).toString('ascii');
+
+    if (prefix !== 'v10') {
+      console.error(`Unexpected prefix: "${prefix}" (expected "v10")`);
+      process.exit(1);
+    }
+
+    const keychainPassword = execSync(
+      'security find-generic-password -s "Signal Safe Storage" -w',
+      { encoding: 'utf8' }
+    ).trim();
+
+    const derivedKey = crypto.pbkdf2Sync(keychainPassword, 'saltysalt', 1003, 16, 'sha1');
+    const iv = Buffer.alloc(16, 0x20);
+    const ciphertext = encryptedBuf.slice(3);
+
+    const decipher = crypto.createDecipheriv('aes-128-cbc', derivedKey, iv);
+    const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+
+    console.log(plaintext.toString('utf8'));
   });
 
 program.parseAsync().catch((err) => {
