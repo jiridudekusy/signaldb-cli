@@ -1,5 +1,5 @@
 - This repository contains a CLI for inspecting a local encrypted Signal Desktop database.
-- User-facing CLI output and prompts are in Czech; keep that language unless a task explicitly changes it.
+- User-facing CLI output and prompts are in English.
 - Database access must remain read-only.
 - `signal-db-cli.js` is the main entrypoint and owns command registration, terminal output, manual display, and the `decrypt` command.
 - `signal-db-mcp.js` is the MCP server exposing the same query functionality via stdio transport.

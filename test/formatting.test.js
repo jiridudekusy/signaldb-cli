@@ -50,10 +50,10 @@ describe('formatMessage', () => {
     expect(result.body).toBe('A'.repeat(20) + '...');
   });
 
-  it('shows "(bez textu)" for missing body', () => {
+  it('shows "(no text)" for missing body', () => {
     const msg = { type: 'incoming' };
     const result = formatMessage(msg);
-    expect(result.body).toBe('(bez textu)');
+    expect(result.body).toBe('(no text)');
   });
 
   it('replaces newlines with spaces', () => {
@@ -177,7 +177,7 @@ describe('parseDateToTs', () => {
   });
 
   it('throws on invalid string', () => {
-    expect(() => parseDateToTs('blbost')).toThrow('Neplatný formát data');
-    expect(() => parseDateToTs('not-a-date')).toThrow('Neplatný formát data');
+    expect(() => parseDateToTs('blbost')).toThrow('Invalid date format');
+    expect(() => parseDateToTs('not-a-date')).toThrow('Invalid date format');
   });
 });

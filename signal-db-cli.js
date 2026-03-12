@@ -38,7 +38,7 @@ import {
 /** Exit early when a DB-backed command is invoked without the decryption key. */
 function checkEnv() {
   if (!process.env.SIGNAL_DECRYPTION_KEY) {
-    console.error('Chybí SIGNAL_DECRYPTION_KEY v .env');
+    console.error('Missing SIGNAL_DECRYPTION_KEY in .env');
     process.exit(1);
   }
 }
@@ -61,7 +61,7 @@ function printMessages(messages, options = {}) {
     } else {
       const fmt = formatMessage(msg);
       const prefix = showDir ? `${fmt.dir} ` : '';
-      const callHint = showCallAfter && msg.has_call_after ? ' 📞 call proběhl' : '';
+      const callHint = showCallAfter && msg.has_call_after ? ' 📞 call made' : '';
       console.log(`${i + 1}. [${formatDate(msg.sent_at)}] ${label ? label + ': ' : ''}${prefix}${fmt.body}${callHint}`);
     }
   });
@@ -79,11 +79,11 @@ const program = new Command();
 
 program
   .name('signal-db-cli')
-  .description('CLI pro práci s lokální Signal databází')
-  .version(pkg.version, '-V, --version', 'zobrazit verzi')
-  .option('-i, --interactive', 'interaktivní výběr (Inquirer)')
-  .option('--json', 'výstup jako JSON')
-  .option('-n, --limit <number>', 'limit výsledků', parseInt)
+  .description('CLI for browsing a local Signal Desktop database')
+  .version(pkg.version, '-V, --version', 'show version')
+  .option('-i, --interactive', 'interactive mode (Inquirer)')
+  .option('--json', 'output as JSON')
+  .option('-n, --limit <number>', 'limit results', parseInt)
   .hook('preAction', async (_parentCommand, actionCommand) => {
     // Keep update checks centralized so every command behaves the same way.
     if (!process.env.NO_UPDATE_NOTIFIER) {
@@ -110,15 +110,15 @@ program
 program
   .command('messages')
   .alias('msg')
-  .description('Zprávy s filtry (full-text, konverzace, nepřečtené, bez odpovědi, datum)')
-  .argument('[query]', 'full-text hledání v těle zpráv')
-  .option('--conv <name>', 'filtr na konverzaci (název, =přesný název, nebo UUID)')
-  .option('--unread', 'jen nepřečtené příchozí')
-  .option('--unanswered [hours]', 'bez odpovědi, starší než N hodin (default 24)')
-  .option('--from <date>', 'od data (ISO např. 2025-01-15)')
-  .option('--to <date>', 'do data (ISO např. 2025-02-17)')
-  .option('--incoming', 'jen příchozí')
-  .option('--outgoing', 'jen odchozí')
+  .description('Messages with filters (full-text, conversation, unread, unanswered, date)')
+  .argument('[query]', 'full-text search in message body')
+  .option('--conv <name>', 'conversation filter (name, =exact name, or UUID)')
+  .option('--unread', 'only unread incoming')
+  .option('--unanswered [hours]', 'unanswered, older than N hours (default 24)')
+  .option('--from <date>', 'from date (ISO e.g. 2025-01-15)')
+  .option('--to <date>', 'to date (ISO e.g. 2025-02-17)')
+  .option('--incoming', 'only incoming')
+  .option('--outgoing', 'only outgoing')
   .action(async (query, options, cmd) => {
     const opts = cmd.parent ? cmd.parent.opts() : {};
     const limit = opts.limit ?? 20;
@@ -137,7 +137,7 @@ program
         description: c.type,
       }));
       convFilter = await search({
-        message: 'Vyber konverzaci',
+        message: 'Select conversation',
         source: async (input) => {
           if (!input) return choices.slice(0, 20);
           const q = input.toLowerCase();
@@ -150,14 +150,14 @@ program
     if (interactive && !query && !options.unread && !options.unanswered && !convFilter) {
       const { search, Separator } = await import('@inquirer/prompts');
       const msgId = await search({
-        message: 'Hledat v zprávách (piš – výsledky se zobrazují živě)',
+        message: 'Search messages (type – results appear live)',
         source: async (input) => {
           if (!input || input.trim().length < 2) return [];
           try {
             const result = getMessages(db, { search: input.trim(), from: options.from, to: options.to, limit });
             if (result.messages.length === 0) return [];
             return [
-              new Separator(`Nalezeno ${result.total} zpráv (zobrazeno ${result.messages.length})`),
+              new Separator(`Found ${result.total} messages (showing ${result.messages.length})`),
               ...result.messages.map((m) => ({
                 value: m.id,
                 name: `${formatDate(m.sent_at)} ${(m.conversationName || m.conversationId)}: ${(m.body || '').slice(0, 50)}...`,
@@ -172,9 +172,9 @@ program
       if (msgId) {
         const msg = getMessageById(db, msgId);
         if (msg) {
-          console.log(`\n--- Zpráva ---`);
-          console.log(`Konverzace: ${msg.conversationName || msg.conversationId}`);
-          console.log(`Datum: ${formatDate(msg.sent_at)}`);
+          console.log(`\n--- Message ---`);
+          console.log(`Conversation: ${msg.conversationName || msg.conversationId}`);
+          console.log(`Date: ${formatDate(msg.sent_at)}`);
           console.log(`\n${msg.body}`);
         }
       }
@@ -203,13 +203,13 @@ program
 
     // Build header
     const parts = [];
-    if (options.unread) parts.push('nepřečtené');
-    if (options.unanswered) parts.push(`bez odpovědi (>${unansweredHours || 24}h)`);
+    if (options.unread) parts.push('unread');
+    if (options.unanswered) parts.push(`unanswered (>${unansweredHours || 24}h)`);
     if (convFilter) parts.push(result.conversationName || convFilter);
     if (query) parts.push(`"${query}"`);
-    if (options.incoming) parts.push('příchozí');
-    if (options.outgoing) parts.push('odchozí');
-    const header = parts.length > 0 ? parts.join(' | ') : 'poslední zprávy';
+    if (options.incoming) parts.push('incoming');
+    if (options.outgoing) parts.push('outgoing');
+    const header = parts.length > 0 ? parts.join(' | ') : 'recent messages';
     console.log(`\n--- ${header} (${result.messages.length}/${result.total}) ---\n`);
 
     if (result.messages.length === 0) return;
@@ -224,7 +224,7 @@ program
         const fmt = formatMessage(msg);
         const age = Math.round((Date.now() - msg.sent_at) / (1000 * 60 * 60));
         const label = msg.conversationName || msg.conversationPhone || msg.conversationId;
-        const count = msg.rottingCount > 1 ? ` (${msg.rottingCount} zpráv)` : '';
+        const count = msg.rottingCount > 1 ? ` (${msg.rottingCount} messages)` : '';
         console.log(`${i + 1}. [${formatDate(msg.sent_at)}] (${age}h) ${label}${count}: ${fmt.body}`);
       });
     } else {
@@ -235,9 +235,9 @@ program
 // Conversation inventory with optional search/filtering.
 program
   .command('convs')
-  .description('Seznam konverzací')
-  .argument('[query]', 'hledat konverzaci podle názvu')
-  .option('-t, --type <type>', 'filtr: private | group')
+  .description('List conversations')
+  .argument('[query]', 'search conversations by name')
+  .option('-t, --type <type>', 'filter: private | group')
   .action(async (query, options, cmd) => {
     const opts = cmd.parent ? cmd.parent.opts() : {};
     const limit = opts.limit ?? 50;
@@ -251,12 +251,12 @@ program
         return;
       }
       if (convs.length === 0) {
-        console.log(`Žádná konverzace neodpovídá "${query}"`);
+        console.log(`No conversation matches "${query}"`);
         return;
       }
-      console.log(`\n--- Konverzace odpovídající "${query}" ---\n`);
+      console.log(`\n--- Conversations matching "${query}" ---\n`);
       convs.forEach((c) => {
-        console.log(`  ${c.name || c.e164 || '(bez názvu)'}  [${c.id}]`);
+        console.log(`  ${c.name || c.e164 || '(unnamed)'}  [${c.id}]`);
       });
       return;
     }
@@ -266,17 +266,17 @@ program
       output({ conversations: convs }, { json: true });
       return;
     }
-    console.log(`\n--- Konverzace (${convs.length}) ---\n`);
+    console.log(`\n--- Conversations (${convs.length}) ---\n`);
     convs.forEach((c, i) => {
-      console.log(`${i + 1}. ${c.name || c.e164 || '(bez názvu)'}  [${c.type}]  ${formatDate(c.active_at)}`);
+      console.log(`${i + 1}. ${c.name || c.e164 || '(unnamed)'}  [${c.type}]  ${formatDate(c.active_at)}`);
     });
   });
 
 // Phone number lookup by contact name.
 program
   .command('phone')
-  .description('Vyhledat telefonní číslo podle jména')
-  .argument('<query>', 'jméno kontaktu')
+  .description('Look up phone number by name')
+  .argument('<query>', 'contact name')
   .action(async (query, _options, cmd) => {
     const opts = cmd.parent ? cmd.parent.opts() : {};
     const json = opts.json;
@@ -287,20 +287,20 @@ program
       return;
     }
     if (convs.length === 0) {
-      console.log(`Žádný kontakt s číslem neodpovídá "${query}"`);
+      console.log(`No contact with phone number matches "${query}"`);
       return;
     }
-    console.log(`\n--- Kontakty pro "${query}" ---\n`);
+    console.log(`\n--- Contacts for "${query}" ---\n`);
     convs.forEach((c) => {
-      console.log(`  ${c.name || '(bez názvu)'}  ${c.e164}`);
+      console.log(`  ${c.name || '(unnamed)'}  ${c.e164}`);
     });
   });
 
 // Call history shown independently from message timelines.
 program
   .command('calls')
-  .description('Historie hovorů')
-  .argument('[n]', 'počet hovorů', (v) => parseInt(v, 10) || 20)
+  .description('Call history')
+  .argument('[n]', 'number of calls', (v) => parseInt(v, 10) || 20)
   .action(async (n, options, cmd) => {
     const opts = cmd.parent ? cmd.parent.opts() : {};
     const limit = opts.limit ?? n ?? 20;
@@ -311,7 +311,7 @@ program
       output({ calls }, { json: true });
       return;
     }
-    console.log(`\n--- Posledních ${calls.length} hovorů ---\n`);
+    console.log(`\n--- Last ${calls.length} calls ---\n`);
     calls.forEach((c, i) => {
       const dir = (c.direction || '').toLowerCase() === 'incoming' ? '↓' : '↑';
       console.log(`${i + 1}. [${formatDate(c.timestamp)}] 📞${dir} ${c.conversationName || c.conversationPhone || '?'}  ${c.status} ${c.mode || ''}`);
@@ -322,29 +322,29 @@ program
 program
   .command('interactive')
   .alias('i')
-  .description('Interaktivní režim – hlavní menu')
+  .description('Interactive mode – main menu')
   .action(async () => {
     const { select, search, Separator } = await import('@inquirer/prompts');
     const db = openDB();
     const choice = await select({
-      message: 'Co chceš dělat?',
+      message: 'What do you want to do?',
       choices: [
-        { value: 'unread', name: 'Nepřečtené zprávy' },
-        { value: 'last', name: 'Poslední zprávy' },
-        { value: 'conv', name: 'Konverzace – zprávy z vybrané konverzace' },
-        { value: 'search', name: 'Hledat v zprávách' },
-        { value: 'unanswered', name: 'Bez odpovědi' },
-        { value: 'calls', name: 'Historie hovorů' },
+        { value: 'unread', name: 'Unread messages' },
+        { value: 'last', name: 'Recent messages' },
+        { value: 'conv', name: 'Conversations – messages from a selected conversation' },
+        { value: 'search', name: 'Search messages' },
+        { value: 'unanswered', name: 'Unanswered' },
+        { value: 'calls', name: 'Call history' },
       ],
     });
     if (choice === 'unread') {
       const result = getMessages(db, { unread: true, limit: 50 });
-      console.log('\n--- Nepřečtené příchozí zprávy ---');
-      console.log(`Celkem: ${result.total} (zobrazeno ${result.messages.length})\n`);
+      console.log('\n--- Unread incoming messages ---');
+      console.log(`Total: ${result.total} (showing ${result.messages.length})\n`);
       printMessages(result.messages, { showCallAfter: true });
     } else if (choice === 'last') {
       const result = getMessages(db, { limit: 20 });
-      console.log(`\n--- Posledních ${result.messages.length} zpráv ---\n`);
+      console.log(`\n--- Last ${result.messages.length} messages ---\n`);
       printMessages(result.messages);
     } else if (choice === 'conv') {
       const convs = getConversations(db, { limit: 100 });
@@ -353,7 +353,7 @@ program
         name: c.name || c.e164 || c.id,
       }));
       const convId = await search({
-        message: 'Vyber konverzaci (piš pro filtrování)',
+        message: 'Select conversation (type to filter)',
         source: async (input) => {
           if (!input) return choices.slice(0, 25);
           const q = input.toLowerCase();
@@ -365,14 +365,14 @@ program
       printMessages(result.messages, { showConv: false, showDir: true });
     } else if (choice === 'search') {
       const msgId = await search({
-        message: 'Hledat v zprávách (piš – výsledky se zobrazují živě)',
+        message: 'Search messages (type – results appear live)',
         source: async (input) => {
           if (!input || input.trim().length < 2) return [];
           try {
             const result = getMessages(db, { search: input.trim(), limit: 15 });
             if (result.messages.length === 0) return [];
             return [
-              new Separator(`Nalezeno ${result.total} zpráv (zobrazeno ${result.messages.length})`),
+              new Separator(`Found ${result.total} messages (showing ${result.messages.length})`),
               ...result.messages.map((m) => ({
                 value: m.id,
                 name: `${formatDate(m.sent_at)} ${(m.conversationName || m.conversationId)}: ${(m.body || '').slice(0, 50)}...`,
@@ -387,29 +387,29 @@ program
       if (msgId) {
         const msg = getMessageById(db, msgId);
         if (msg) {
-          console.log(`\n--- Zpráva ---`);
-          console.log(`Konverzace: ${msg.conversationName || msg.conversationId}`);
-          console.log(`Datum: ${formatDate(msg.sent_at)}`);
+          console.log(`\n--- Message ---`);
+          console.log(`Conversation: ${msg.conversationName || msg.conversationId}`);
+          console.log(`Date: ${formatDate(msg.sent_at)}`);
           console.log(`\n${msg.body}`);
         }
       }
     } else if (choice === 'unanswered') {
       const result = getMessages(db, { unanswered: true, olderThan: 24, limit: 30 });
       if (result.messages.length === 0) {
-        console.log('\nŽádné zprávy bez odpovědi.');
+        console.log('\nNo unanswered messages.');
       } else {
-        console.log('\n--- Bez odpovědi ---\n');
+        console.log('\n--- Unanswered ---\n');
         result.messages.forEach((msg, idx) => {
           const fmt = formatMessage(msg);
           const age = Math.round((Date.now() - msg.sent_at) / (1000 * 60 * 60));
           const label = msg.conversationName || msg.conversationPhone || msg.conversationId;
-          const count = msg.rottingCount > 1 ? ` (${msg.rottingCount} zpráv)` : '';
+          const count = msg.rottingCount > 1 ? ` (${msg.rottingCount} messages)` : '';
           console.log(`${idx + 1}. [${formatDate(msg.sent_at)}] (${age}h) ${label}${count}: ${fmt.body}`);
         });
       }
     } else if (choice === 'calls') {
       const calls = getCalls(db, 20);
-      console.log('\n--- Posledních 20 hovorů ---\n');
+      console.log('\n--- Last 20 calls ---\n');
       calls.forEach((c, idx) => {
         const dir = (c.direction || '').toLowerCase() === 'incoming' ? '↓' : '↑';
         console.log(`${idx + 1}. [${formatDate(c.timestamp)}] 📞${dir} ${c.conversationName || '?'}  ${c.status}`);
@@ -420,21 +420,21 @@ program
 // Print the bundled manual directly from the repository.
 program
   .command('manual')
-  .description('Rozšířená dokumentace')
+  .description('Extended documentation')
   .action(async () => {
     const fs = await import('fs');
     const manualPath = path.join(__dirname, 'docs', 'MANUAL.md');
     if (fs.existsSync(manualPath)) {
       console.log(fs.readFileSync(manualPath, 'utf8'));
     } else {
-      console.log('Soubor docs/MANUAL.md nenalezen.');
+      console.log('File docs/MANUAL.md not found.');
     }
   });
 
 // Extract the SQLCipher decryption key from Signal Desktop's config.
 program
   .command('decrypt')
-  .description('Zjistit dešifrovací klíč z Signal Desktop (macOS)')
+  .description('Extract decryption key from Signal Desktop (macOS)')
   .action(async () => {
     const crypto = await import('crypto');
     const { execSync } = await import('child_process');
@@ -446,7 +446,7 @@ program
     const configPath = path.join(signalDir, 'config.json');
 
     if (!fs.existsSync(configPath)) {
-      console.error(`Signal config nenalezen: ${configPath}`);
+      console.error(`Signal config not found: ${configPath}`);
       process.exit(1);
     }
 

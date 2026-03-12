@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-CLI tool for browsing a local encrypted Signal Desktop database (read-only). All UI text is in Czech. The database is opened via SQLCipher (`@signalapp/better-sqlite3`).
+CLI tool for browsing a local encrypted Signal Desktop database (read-only). All UI text is in English. The database is opened via SQLCipher (`@signalapp/better-sqlite3`).
 
 ## Commands
 
@@ -63,7 +63,7 @@ Both source and test files use ESM (`import`/`export`). The project has `"type":
 
 ## FTS5 Query Syntax
 
-`toFTS5Query()` converts user-friendly syntax: spaces = OR, commas = AND, each term gets a `*` suffix for prefix matching. Example: `"ahoj svete, deadline"` becomes `"(ahoj* OR svete*) AND deadline*"`.
+`toFTS5Query()` converts user-friendly syntax: spaces = OR, commas = AND, each term gets a `*` suffix for prefix matching. Example: `"hello world, deadline"` becomes `"(hello* OR world*) AND deadline*"`.
 
 ## Conversation ID detection and multi-conv search
 
@@ -73,13 +73,13 @@ Both source and test files use ESM (`import`/`export`). The project has `"type":
 2. **Exact name** — prefix `=` (e.g. `=USY HoT`) → `findConversations(db, name, { exact: true })`, returns exactly one conversation or throws.
 3. **Fuzzy name** — everything else → `findConversations(db, name)`, returns all matching conversations. Messages are queried across all matches using `IN (?, ?, ...)` clause.
 
-When multiple conversations match a fuzzy search, `conversationName` is set to `"<query> (<N> konverzací)"`.
+When multiple conversations match a fuzzy search, `conversationName` is set to `"<query> (<N> conversations)"`.
 
 ## Maintenance checklist
 
 **IMPORTANT:** When changing CLI commands, options, or behavior, always update these files:
 
-1. **`docs/MANUAL.md`** — end-user documentation. Must reflect the current CLI surface (commands, options, examples). Written in Czech.
+1. **`docs/MANUAL.md`** — end-user documentation. Must reflect the current CLI surface (commands, options, examples). Written in English.
 2. **This file (`CLAUDE.md`)** — update the Architecture section (export list, tool list), Error handling, or any other section that describes the changed behavior.
 3. **`AGENTS.md`** — keep aligned with this file. If you change guidance here, mirror it there.
 4. **`test/mcp.test.js`** — if MCP tools are added/removed, update the tool count assertion (`'registers all N tools'`) and add/remove the corresponding test.
