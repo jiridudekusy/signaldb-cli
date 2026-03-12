@@ -159,7 +159,7 @@ With the `messages` command, you can use `-i` for interactive conversation selec
 The tool includes an MCP server (`signal-db-mcp`) for integration with AI tools. Run it as:
 
 ```bash
-signal-db-mcp
+npx -y --ignore-scripts=false -p signal-db-cli signal-db-mcp
 ```
 
 Available tools: `get_messages`, `get_conversations`, `get_calls`, `get_message_by_id`, `get_phone`.
@@ -183,5 +183,3 @@ Run `signal-db-cli decrypt` to extract and save the key automatically. Alternati
 ### Database is locked
 Close Signal Desktop before using the tool. Signal holds an exclusive lock on the database.
 
-### SQLITE_BUSY
-The database is in use by another process. Close Signal Desktop and try again.

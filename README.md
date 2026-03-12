@@ -10,25 +10,25 @@ Read-only access to your local Signal Desktop database — from the terminal or 
 - **Node.js 24** (see `.nvmrc`)
 - **macOS / Linux / Windows**
 
-## Installation
+## Quick Start
+
+**1. Install** (needed for the CLI and the `decrypt` command):
 
 ```bash
 npm install -g signal-db-cli --ignore-scripts=false
 ```
 
-The `--ignore-scripts=false` flag is required to compile the native SQLCipher addon.
-
-## Getting the Decryption Key
-
-Signal Desktop encrypts its database with a key stored in your system keychain / keyring. Extract it and save to `~/.signal-db-cli/.env` with:
+**2. Extract the decryption key** (close Signal Desktop first):
 
 ```bash
 signal-db-cli decrypt
 ```
 
-This works on **macOS** (Keychain), **Linux** (GNOME Keyring / KWallet), and **Windows** (DPAPI). The key is saved automatically — no manual steps needed.
+This extracts the key from your system keychain / keyring and saves it to `~/.signal-db-cli/.env`. Works on **macOS** (Keychain), **Linux** (GNOME Keyring / KWallet), and **Windows** (DPAPI).
 
-> **Note:** Close Signal Desktop before use — Signal holds an exclusive lock on the database.
+**3. Set up the MCP server** (see below) or use the CLI directly.
+
+> The `--ignore-scripts=false` flag is required to compile the native SQLCipher addon.
 
 ---
 
@@ -48,20 +48,12 @@ The MCP server lets AI assistants browse your Signal messages, conversations, an
 
 ### Setup
 
-> If you have the key in `~/.signal-db-cli/.env`, you can omit `SIGNAL_DECRYPTION_KEY` from the configs below — the server loads it automatically.
+> Run `signal-db-cli decrypt` first (see Quick Start above). The MCP server loads the key automatically from `~/.signal-db-cli/.env`.
 
 #### Claude Code
 
-Run in your terminal:
-
 ```bash
-claude mcp add signal-db -- signal-db-mcp
-```
-
-Or with an explicit key:
-
-```bash
-claude mcp add signal-db -e SIGNAL_DECRYPTION_KEY=<your-hex-key> -- signal-db-mcp
+claude mcp add signal-db -- npx -y --ignore-scripts=false -p signal-db-cli signal-db-mcp
 ```
 
 #### Claude Desktop
@@ -78,10 +70,8 @@ Add the `signal-db` server (merge into existing `mcpServers` if needed):
 {
   "mcpServers": {
     "signal-db": {
-      "command": "signal-db-mcp",
-      "env": {
-        "SIGNAL_DECRYPTION_KEY": "<your-hex-key>"
-      }
+      "command": "npx",
+      "args": ["-y", "--ignore-scripts=false", "-p", "signal-db-cli", "signal-db-mcp"]
     }
   }
 }
@@ -91,30 +81,19 @@ Then restart Claude Desktop.
 
 #### Cursor
 
-One-click install:
+[<img src="https://cursor.com/deeplink/mcp-install-dark.svg" alt="Install in Cursor" height="32">](https://cursor.com/en/install-mcp?name=signal-db&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsIi0taWdub3JlLXNjcmlwdHM9ZmFsc2UiLCItcCIsInNpZ25hbC1kYi1jbGkiLCJzaWduYWwtZGItbWNwIl19)
 
-[<img src="https://cursor.com/deeplink/mcp-install-dark.svg" alt="Install in Cursor" height="32">](https://cursor.com/en/install-mcp?name=signal-db&config=eyJjb21tYW5kIjoic2lnbmFsLWRiLW1jcCJ9)
+Or manually — create/edit `~/.cursor/mcp.json`:
 
-Or manually — open the config file:
-
-```bash
-# macOS / Linux
-open .cursor/mcp.json       # project-level
-open ~/.cursor/mcp.json      # global
-
-# Or create it
-mkdir -p .cursor && cat > .cursor/mcp.json << 'EOF'
+```json
 {
   "mcpServers": {
     "signal-db": {
-      "command": "signal-db-mcp",
-      "env": {
-        "SIGNAL_DECRYPTION_KEY": "<your-hex-key>"
-      }
+      "command": "npx",
+      "args": ["-y", "--ignore-scripts=false", "-p", "signal-db-cli", "signal-db-mcp"]
     }
   }
 }
-EOF
 ```
 
 Then restart Cursor or reload the MCP servers (Cmd+Shift+P > "MCP: Reload").
