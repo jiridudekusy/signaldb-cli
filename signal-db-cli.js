@@ -431,58 +431,192 @@ program
     }
   });
 
-// Extract the SQLCipher decryption key from Signal Desktop's config.
+// --- Decrypt helpers (platform-specific) ---
+
+/** Retrieve Signal password from Linux keyring (GNOME Keyring or KWallet). */
+function getLinuxKeyringPassword(execSync) {
+  for (const appName of ['signal', 'Signal']) {
+    try {
+      const pw = execSync(`secret-tool lookup application ${appName}`, {
+        encoding: 'utf8', timeout: 5000, stdio: ['pipe', 'pipe', 'pipe'],
+      }).trim();
+      if (pw) return pw;
+    } catch { /* try next */ }
+  }
+  try {
+    const pw = execSync(
+      'kwallet-query -r "Signal Safe Storage" kdewallet',
+      { encoding: 'utf8', timeout: 5000, stdio: ['pipe', 'pipe', 'pipe'] },
+    ).trim();
+    if (pw) return pw;
+  } catch { /* not KDE */ }
+  console.error(
+    'Cannot retrieve Signal password from keyring.\n\n' +
+    'For GNOME Keyring, install libsecret-tools:\n' +
+    '  sudo apt install libsecret-tools\n' +
+    '  secret-tool lookup application signal\n\n' +
+    'For KDE KWallet:\n' +
+    '  kwallet-query -r "Signal Safe Storage" kdewallet',
+  );
+  process.exit(1);
+}
+
+/** Decrypt a DPAPI-protected buffer via PowerShell (Windows). */
+function dpapiDecrypt(execSync, buf) {
+  // Base64 charset [A-Za-z0-9+/=] is safe inside a PowerShell single-quoted string
+  const b64 = buf.toString('base64');
+  const psCommand =
+    'Add-Type -AssemblyName System.Security; ' +
+    '[Convert]::ToBase64String(' +
+    '[System.Security.Cryptography.ProtectedData]::Unprotect(' +
+    `[Convert]::FromBase64String('${b64}'),` +
+    '$null,' +
+    '[System.Security.Cryptography.DataProtectionScope]::CurrentUser))';
+  const result = execSync(
+    `powershell -NoProfile -NonInteractive -Command "${psCommand}"`,
+    { encoding: 'utf8', windowsHide: true },
+  ).trim();
+  return Buffer.from(result, 'base64');
+}
+
+/** Windows AES-256-GCM decryption with DPAPI-protected master key (Chromium os_crypt v10/v11). */
+function decryptWindowsAesGcm(crypto, execSync, fs, encBuf, signalDir) {
+  const localStatePath = path.join(signalDir, 'Local State');
+  if (!fs.existsSync(localStatePath)) {
+    console.error(`Local State not found: ${localStatePath}`);
+    process.exit(1);
+  }
+  const localState = JSON.parse(fs.readFileSync(localStatePath, 'utf8'));
+  const masterKeyB64 = localState?.os_crypt?.encrypted_key;
+  if (!masterKeyB64) {
+    console.error('No os_crypt.encrypted_key in Local State');
+    process.exit(1);
+  }
+  const masterKeyRaw = Buffer.from(masterKeyB64, 'base64');
+  if (masterKeyRaw.subarray(0, 5).toString('ascii') !== 'DPAPI') {
+    console.error('Unexpected master key prefix (expected "DPAPI")');
+    process.exit(1);
+  }
+  const masterKey = dpapiDecrypt(execSync, masterKeyRaw.subarray(5));
+  if (masterKey.length !== 32) {
+    console.error(`Master key is ${masterKey.length} bytes, expected 32`);
+    process.exit(1);
+  }
+  // encBuf layout: [3B prefix][12B nonce][ciphertext][16B GCM tag]
+  const nonce = encBuf.subarray(3, 15);
+  const ciphertextAndTag = encBuf.subarray(15);
+  const authTag = ciphertextAndTag.subarray(-16);
+  const ciphertext = ciphertextAndTag.subarray(0, -16);
+  const decipher = crypto.createDecipheriv('aes-256-gcm', masterKey, nonce);
+  decipher.setAuthTag(authTag);
+  return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
+}
+
+// Extract the SQLCipher decryption key and save it to ~/.signal-db-cli/.env.
 program
   .command('decrypt')
-  .description('Extract decryption key from Signal Desktop (macOS)')
+  .description('Extract decryption key from Signal Desktop and save to ~/.signal-db-cli/.env')
   .action(async () => {
     const crypto = await import('crypto');
     const { execSync } = await import('child_process');
     const fs = await import('fs');
+    const plat = process.platform;
 
-    const signalDir =
-      process.env.SIGNAL_DIR ||
-      path.join(os.homedir(), 'Library', 'Application Support', 'Signal');
+    // 1. Find Signal data directory
+    const signalDir = process.env.SIGNAL_DIR || (() => {
+      if (plat === 'darwin') return path.join(os.homedir(), 'Library', 'Application Support', 'Signal');
+      if (plat === 'linux') return path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), 'Signal');
+      if (plat === 'win32') return path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'Signal');
+      console.error(`Unsupported platform: ${plat}`);
+      process.exit(1);
+    })();
+
+    // 2. Read config.json
     const configPath = path.join(signalDir, 'config.json');
-
     if (!fs.existsSync(configPath)) {
       console.error(`Signal config not found: ${configPath}`);
+      if (plat === 'linux') {
+        console.error(
+          'Standard locations:\n' +
+          '  ~/.config/Signal/config.json\n' +
+          '  ~/.var/app/org.signal.Signal/config/Signal/config.json  (Flatpak)',
+        );
+      }
       process.exit(1);
     }
-
     const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 
+    // 3. Extract key
+    let key;
     if (config.key) {
-      console.log(config.key);
-      return;
-    }
-
-    if (!config.encryptedKey) {
-      console.error('No encryptedKey or key found in config.json');
+      // Plaintext key (legacy or already decrypted)
+      key = config.key;
+    } else if (!config.encryptedKey) {
+      console.error('No "encryptedKey" or "key" found in config.json');
       process.exit(1);
+    } else {
+      const encBuf = Buffer.from(config.encryptedKey, 'hex');
+      const prefix = encBuf.subarray(0, 3).toString('ascii');
+
+      if (plat === 'darwin') {
+        // macOS: AES-128-CBC with Keychain password, PBKDF2 1003 iterations
+        if (prefix !== 'v10') {
+          console.error(`Unexpected prefix: "${prefix}" (expected "v10")`);
+          process.exit(1);
+        }
+        const keychainPassword = execSync(
+          'security find-generic-password -s "Signal Safe Storage" -w',
+          { encoding: 'utf8' },
+        ).trim();
+        const derivedKey = crypto.pbkdf2Sync(keychainPassword, 'saltysalt', 1003, 16, 'sha1');
+        const iv = Buffer.alloc(16, 0x20);
+        const decipher = crypto.createDecipheriv('aes-128-cbc', derivedKey, iv);
+        key = Buffer.concat([decipher.update(encBuf.subarray(3)), decipher.final()]).toString('utf8');
+
+      } else if (plat === 'linux') {
+        // Linux: v10 = "peanuts" password, v11 = keyring password; PBKDF2 1 iteration
+        let password;
+        if (prefix === 'v10') {
+          password = 'peanuts';
+        } else if (prefix === 'v11') {
+          password = getLinuxKeyringPassword(execSync);
+        } else {
+          console.error(`Unknown prefix: "${prefix}" (expected "v10" or "v11")`);
+          process.exit(1);
+        }
+        const derivedKey = crypto.pbkdf2Sync(password, 'saltysalt', 1, 16, 'sha1');
+        const iv = Buffer.alloc(16, 0x20);
+        const decipher = crypto.createDecipheriv('aes-128-cbc', derivedKey, iv);
+        key = Buffer.concat([decipher.update(encBuf.subarray(3)), decipher.final()]).toString('utf8');
+
+      } else if (plat === 'win32') {
+        // Windows: v10/v11 = AES-256-GCM with DPAPI master key, older = DPAPI directly
+        if (prefix === 'v10' || prefix === 'v11') {
+          key = decryptWindowsAesGcm(crypto, execSync, fs, encBuf, signalDir);
+        } else {
+          key = dpapiDecrypt(execSync, encBuf).toString('utf8');
+        }
+      }
     }
 
-    const encryptedBuf = Buffer.from(config.encryptedKey, 'hex');
-    const prefix = encryptedBuf.slice(0, 3).toString('ascii');
+    // 4. Save to ~/.signal-db-cli/.env
+    const envDir = path.join(os.homedir(), '.signal-db-cli');
+    const envPath = path.join(envDir, '.env');
+    fs.mkdirSync(envDir, { recursive: true });
 
-    if (prefix !== 'v10') {
-      console.error(`Unexpected prefix: "${prefix}" (expected "v10")`);
-      process.exit(1);
+    let content = '';
+    if (fs.existsSync(envPath)) {
+      content = fs.readFileSync(envPath, 'utf8');
+      if (/^SIGNAL_DECRYPTION_KEY=.*/m.test(content)) {
+        content = content.replace(/^SIGNAL_DECRYPTION_KEY=.*/m, `SIGNAL_DECRYPTION_KEY=${key}`);
+      } else {
+        content = content.trimEnd() + `\nSIGNAL_DECRYPTION_KEY=${key}\n`;
+      }
+    } else {
+      content = `SIGNAL_DECRYPTION_KEY=${key}\n`;
     }
-
-    const keychainPassword = execSync(
-      'security find-generic-password -s "Signal Safe Storage" -w',
-      { encoding: 'utf8' }
-    ).trim();
-
-    const derivedKey = crypto.pbkdf2Sync(keychainPassword, 'saltysalt', 1003, 16, 'sha1');
-    const iv = Buffer.alloc(16, 0x20);
-    const ciphertext = encryptedBuf.slice(3);
-
-    const decipher = crypto.createDecipheriv('aes-128-cbc', derivedKey, iv);
-    const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-
-    console.log(plaintext.toString('utf8'));
+    fs.writeFileSync(envPath, content);
+    console.log(`Decryption key saved to ${envPath}`);
   });
 
 program.parseAsync().catch((err) => {

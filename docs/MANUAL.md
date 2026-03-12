@@ -10,7 +10,6 @@ Signal DB CLI is a tool for working with the local encrypted Signal Desktop data
 
 - Signal Desktop installed
 - Node.js 24
-- Decryption key from Signal's `config.json`
 
 ## Database Location
 
@@ -22,17 +21,12 @@ Signal stores data in an encrypted SQLite file:
 
 ## Configuration
 
-Set the decryption key in the `SIGNAL_DECRYPTION_KEY` environment variable. You can use:
+Run `signal-db-cli decrypt` to extract the decryption key and save it automatically to `~/.signal-db-cli/.env`. This works on macOS (Keychain), Linux (GNOME Keyring / KWallet), and Windows (DPAPI).
 
-1. **Local `.env`** in the project root
+The key is stored in the `SIGNAL_DECRYPTION_KEY` environment variable. The tool loads it from:
+
+1. **Local `.env`** in the current directory
 2. **Global config** in `~/.signal-db-cli/.env`
-
-`.env` format:
-```
-SIGNAL_DECRYPTION_KEY=REDACTED_KEY
-```
-
-Get the key with `signal-db-cli decrypt` (macOS), or find it in the Signal folder in `config.json` (the `key` field — depends on Signal version).
 
 **Note:** Close Signal Desktop before use, otherwise the database may be locked.
 
@@ -47,7 +41,7 @@ Get the key with `signal-db-cli decrypt` (macOS), or find it in the Signal folde
 | `phone <query>` | Look up phone number by contact name |
 | `calls [n]` | Call history |
 | `interactive` (alias: `i`) | Interactive mode – main menu |
-| `decrypt` | Extract decryption key from Signal Desktop (macOS) |
+| `decrypt` | Extract decryption key from Signal Desktop and save to ~/.signal-db-cli/.env |
 | `manual` | This documentation |
 
 ### Filters for `messages`
@@ -121,7 +115,7 @@ signal-db-cli calls 30
 # Interactive mode
 signal-db-cli interactive
 
-# Extract decryption key (macOS)
+# Extract decryption key and save to ~/.signal-db-cli/.env
 signal-db-cli decrypt
 
 # JSON output for further processing
@@ -184,7 +178,7 @@ To disable the check, set `NO_UPDATE_NOTIFIER=1`.
 ## Troubleshooting
 
 ### Missing SIGNAL_DECRYPTION_KEY
-Check that the `SIGNAL_DECRYPTION_KEY` environment variable is set in `.env` or your environment with a valid hex key. You can get it with `signal-db-cli decrypt`.
+Run `signal-db-cli decrypt` to extract and save the key automatically. Alternatively, set the `SIGNAL_DECRYPTION_KEY` environment variable in `.env` or `~/.signal-db-cli/.env` with a valid hex key.
 
 ### Database is locked
 Close Signal Desktop before using the tool. Signal holds an exclusive lock on the database.

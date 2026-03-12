@@ -32,7 +32,7 @@ signal-db-mcp.js          MCP server (stdio transport, exposes same queries as C
        └── @signalapp/better-sqlite3 (SQLCipher)
 ```
 
-**signal-db-cli.js** registers commands and handles terminal output. All database logic lives in **lib/signal-db.js** which exports query functions (`getMessages`, `getConversations`, `getCalls`, `findConversations`, `getMessageById`) and pure formatting functions (`formatDate`, `formatMessage`, `formatCall`, `toFTS5Query`, `parseDateToTs`).
+**signal-db-cli.js** registers commands and handles terminal output. It also owns the `decrypt` command which extracts the Signal decryption key on all platforms (macOS Keychain, Linux GNOME Keyring/KWallet, Windows DPAPI) and saves it to `~/.signal-db-cli/.env`. All database logic lives in **lib/signal-db.js** which exports query functions (`getMessages`, `getConversations`, `getCalls`, `findConversations`, `getMessageById`) and pure formatting functions (`formatDate`, `formatMessage`, `formatCall`, `toFTS5Query`, `parseDateToTs`).
 
 **signal-db-mcp.js** is an MCP server exposing tools: `get_messages`, `get_conversations`, `get_calls`, `get_message_by_id`, `get_phone`.
 
