@@ -25,13 +25,9 @@ const {
   formatDate,
   formatMessage,
   formatCall,
-  getUnread,
-  getLastMessages,
+  getMessages,
   findConversations,
-  getConversationMessages,
-  getRotting,
   getMessageById,
-  searchMessagesFTS,
   getConversations,
   getCalls,
 } = require('./lib/signal-db');
@@ -95,7 +91,7 @@ program
           updateCheckInterval: 1000 * 60 * 60 * 24,
         });
         notifier.notify();
-      } catch (e) {
+      } catch {
         // Ignore update check errors
       }
     }
@@ -107,61 +103,29 @@ program
     }
   });
 
-// Inbox-style view: unread incoming messages with a call-follow-up hint.
+// Unified message query with composable filters.
 program
-  .command('unread')
-  .description('Nepřečtené příchozí zprávy')
-  .argument('[n]', 'počet zpráv', (v) => parseInt(v, 10) || 50)
-  .action(async (n, options, cmd) => {
+  .command('messages')
+  .alias('msg')
+  .description('Zprávy s filtry (full-text, konverzace, nepřečtené, bez odpovědi, datum)')
+  .argument('[query]', 'full-text hledání v těle zpráv')
+  .option('--conv <name>', 'filtr na konverzaci (název nebo ID)')
+  .option('--unread', 'jen nepřečtené příchozí')
+  .option('--unanswered [hours]', 'bez odpovědi, starší než N hodin (default 24)')
+  .option('--from <date>', 'od data (ISO např. 2025-01-15)')
+  .option('--to <date>', 'do data (ISO např. 2025-02-17)')
+  .option('--incoming', 'jen příchozí')
+  .option('--outgoing', 'jen odchozí')
+  .action(async (query, options, cmd) => {
     const opts = cmd.parent ? cmd.parent.opts() : {};
-    const limit = opts.limit ?? n ?? 50;
-    const json = opts.json;
-    const db = openDB();
-    const { total, messages } = getUnread(db, limit);
-    if (json) {
-      output({ total, messages }, { json: true });
-      return;
-    }
-    console.log('\n--- Nepřečtené příchozí zprávy ---');
-    console.log(`Celkem: ${total} (zobrazeno ${messages.length})`);
-    console.log('📞 = proběhl call po zprávě → reakce možná není potřeba\n');
-    printMessages(messages, { showCallAfter: true });
-  });
-
-// Recent activity feed across all conversations.
-program
-  .command('last')
-  .description('Posledních n zpráv ze všech konverzací')
-  .argument('[n]', 'počet zpráv', (v) => parseInt(v, 10) || 20)
-  .action(async (n, options, cmd) => {
-    const opts = cmd.parent ? cmd.parent.opts() : {};
-    const limit = opts.limit ?? n ?? 20;
-    const json = opts.json;
-    const db = openDB();
-    const messages = getLastMessages(db, limit);
-    if (json) {
-      output({ messages }, { json: true });
-      return;
-    }
-    console.log(`\n--- Posledních ${messages.length} zpráv ---\n`);
-    printMessages(messages);
-  });
-
-// Conversation timeline by fuzzy name match, explicit ID, or interactive picker.
-program
-  .command('conv')
-  .description('Posledních n zpráv z konverzace')
-  .argument('[query]', 'část názvu konverzace nebo ID')
-  .argument('[n]', 'počet zpráv', (v) => parseInt(v, 10) || 10)
-  .action(async (query, n, options, cmd) => {
-    const opts = cmd.parent ? cmd.parent.opts() : {};
-    const limit = opts.limit ?? n ?? 10;
+    const limit = opts.limit ?? 20;
     const interactive = opts.interactive;
     const json = opts.json;
     const db = openDB();
 
-    let resolvedQuery = query;
-    if (interactive || !query) {
+    // Interactive conversation picker when --conv used with -i or without value
+    let convFilter = options.conv;
+    if (interactive && !convFilter) {
       const { search } = require('@inquirer/prompts');
       const convs = getConversations(db, { limit: 100 });
       const choices = convs.map((c) => ({
@@ -169,7 +133,7 @@ program
         name: c.name || c.e164 || c.id,
         description: c.type,
       }));
-      resolvedQuery = await search({
+      convFilter = await search({
         message: 'Vyber konverzaci',
         source: async (input) => {
           if (!input) return choices.slice(0, 20);
@@ -179,78 +143,18 @@ program
       });
     }
 
-    if (!resolvedQuery) {
-      console.error('Použití: conv <jméno nebo ID konverzace> [počet]');
-      process.exit(1);
-    }
-
-    const result = getConversationMessages(db, resolvedQuery, limit);
-    if (result.error) {
-      console.error(result.error);
-      process.exit(1);
-    }
-    if (json) {
-      output(result, { json: true });
-      return;
-    }
-    console.log(`\n--- ${result.conversationName || resolvedQuery}: posledních ${result.messages.length} položek (zprávy + hovory) ---\n`);
-    printMessages(result.messages, { showConv: false, showDir: true });
-  });
-
-// Lightweight search over conversation metadata only.
-program
-  .command('search')
-  .description('Vyhledat konverzace podle názvu')
-  .argument('<query>', 'část názvu')
-  .action(async (query, options, cmd) => {
-    const opts = cmd.parent ? cmd.parent.opts() : {};
-    const json = opts.json;
-    const db = openDB();
-    const convs = findConversations(db, query);
-    if (json) {
-      output({ conversations: convs }, { json: true });
-      return;
-    }
-    if (convs.length === 0) {
-      console.log(`Žádná konverzace neodpovídá "${query}"`);
-      return;
-    }
-    console.log(`\n--- Konverzace odpovídající "${query}" ---\n`);
-    convs.forEach((c) => {
-      console.log(`  ${c.name || c.e164 || '(bez názvu)'}  [${c.id}]`);
-    });
-  });
-
-// Message-body search backed by the SQLite FTS index.
-program
-  .command('search-msg')
-  .description('Full-text vyhledávání v těle zpráv')
-  .argument('[query]', 'hledaný text (u -i volitelné)')
-  .option('--from <date>', 'od data (ISO např. 2025-01-15)')
-  .option('--to <date>', 'do data (ISO např. 2025-02-17)')
-  .action(async (query, options, cmd) => {
-    const opts = cmd.parent ? cmd.parent.opts() : {};
-    const limit = opts.limit ?? 20;
-    const interactive = opts.interactive;
-    const json = opts.json;
-    const db = openDB();
-    const searchOpts = { from: options.from, to: options.to };
-
-    if (interactive || !query) {
+    // Interactive FTS search when -i and no query
+    if (interactive && !query && !options.unread && !options.unanswered && !convFilter) {
       const { search, Separator } = require('@inquirer/prompts');
       const msgId = await search({
         message: 'Hledat v zprávách (piš – výsledky se zobrazují živě)',
-        source: async (input, { signal }) => {
-          if (!input || input.trim().length < 2) {
-            return [];
-          }
-          const { messages: msgs, total } = searchMessagesFTS(db, input.trim(), limit, searchOpts);
-          if (msgs.length === 0) {
-            return [];
-          }
+        source: async (input) => {
+          if (!input || input.trim().length < 2) return [];
+          const result = getMessages(db, { search: input.trim(), from: options.from, to: options.to, limit });
+          if (result.messages.length === 0) return [];
           return [
-            new Separator(`Nalezeno ${total} zpráv (zobrazeno ${msgs.length})`),
-            ...msgs.map((m) => ({
+            new Separator(`Nalezeno ${result.total} zpráv (zobrazeno ${result.messages.length})`),
+            ...result.messages.map((m) => ({
               value: m.id,
               name: `${formatDate(m.sent_at)} ${(m.conversationName || m.conversationId)}: ${(m.body || '').slice(0, 50)}...`,
               description: (m.body || '').slice(0, 100),
@@ -270,29 +174,91 @@ program
       return;
     }
 
-    const { messages, total } = searchMessagesFTS(db, query, limit, searchOpts);
+    const unansweredHours = options.unanswered === true ? 24 : parseInt(options.unanswered, 10) || undefined;
+
+    const result = getMessages(db, {
+      conv: convFilter,
+      unread: options.unread || false,
+      unanswered: !!options.unanswered,
+      olderThan: unansweredHours,
+      search: query,
+      from: options.from,
+      to: options.to,
+      incoming: options.incoming || false,
+      outgoing: options.outgoing || false,
+      limit,
+    });
+
+    if (result.error) {
+      console.error(result.error);
+      process.exit(1);
+    }
+
     if (json) {
-      output({ messages, total }, { json: true });
+      output(result, { json: true });
       return;
     }
-    if (messages.length === 0) {
-      console.log(`Žádné zprávy neobsahují "${query}"`);
-      return;
+
+    // Build header
+    const parts = [];
+    if (options.unread) parts.push('nepřečtené');
+    if (options.unanswered) parts.push(`bez odpovědi (>${unansweredHours || 24}h)`);
+    if (convFilter) parts.push(result.conversationName || convFilter);
+    if (query) parts.push(`"${query}"`);
+    if (options.incoming) parts.push('příchozí');
+    if (options.outgoing) parts.push('odchozí');
+    const header = parts.length > 0 ? parts.join(' | ') : 'poslední zprávy';
+    console.log(`\n--- ${header} (${result.messages.length}/${result.total}) ---\n`);
+
+    if (result.messages.length === 0) return;
+
+    // Render options based on active filters
+    const showConv = !convFilter;
+    const showDir = !!convFilter;
+    const showCallAfter = !!options.unread;
+
+    if (options.unanswered) {
+      result.messages.forEach((msg, i) => {
+        const fmt = formatMessage(msg);
+        const age = Math.round((Date.now() - msg.sent_at) / (1000 * 60 * 60));
+        const label = msg.conversationName || msg.conversationPhone || msg.conversationId;
+        const count = msg.rottingCount > 1 ? ` (${msg.rottingCount} zpráv)` : '';
+        console.log(`${i + 1}. [${formatDate(msg.sent_at)}] (${age}h) ${label}${count}: ${fmt.body}`);
+      });
+    } else {
+      printMessages(result.messages, { showConv, showDir, showCallAfter });
     }
-    console.log(`\n--- Zprávy obsahující "${query}" (nalezeno ${total}, zobrazeno ${messages.length}) ---\n`);
-    printMessages(messages);
   });
 
-// Conversation inventory with optional private/group filtering.
+// Conversation inventory with optional search/filtering.
 program
   .command('convs')
   .description('Seznam konverzací')
+  .argument('[query]', 'hledat konverzaci podle názvu')
   .option('-t, --type <type>', 'filtr: private | group')
-  .action(async (options, cmd) => {
+  .action(async (query, options, cmd) => {
     const opts = cmd.parent ? cmd.parent.opts() : {};
     const limit = opts.limit ?? 50;
     const json = opts.json;
     const db = openDB();
+
+    if (query) {
+      const convs = findConversations(db, query);
+      if (json) {
+        output({ conversations: convs }, { json: true });
+        return;
+      }
+      if (convs.length === 0) {
+        console.log(`Žádná konverzace neodpovídá "${query}"`);
+        return;
+      }
+      console.log(`\n--- Konverzace odpovídající "${query}" ---\n`);
+      convs.forEach((c) => {
+        console.log(`  ${c.name || c.e164 || '(bez názvu)'}  [${c.id}]`);
+      });
+      return;
+    }
+
     const convs = getConversations(db, { type: options.type || null, limit });
     if (json) {
       output({ conversations: convs }, { json: true });
@@ -326,43 +292,13 @@ program
     });
   });
 
-// Surfaces old incoming messages that still have no outgoing reply.
-program
-  .command('rotting')
-  .description('Hnijící zprávy (bez odpovědi)')
-  .argument('[hodiny]', 'práh v hodinách', (v) => parseInt(v, 10) || 24)
-  .action(async (hodiny, options, cmd) => {
-    const opts = cmd.parent ? cmd.parent.opts() : {};
-    const limit = opts.limit ?? 30;
-    const json = opts.json;
-    const db = openDB();
-    const messages = getRotting(db, hodiny, limit);
-    if (json) {
-      output({ messages }, { json: true });
-      return;
-    }
-    if (messages.length === 0) {
-      console.log(`\n--- Žádné hnijící zprávy (práh: ${hodiny}h) ---\n`);
-      return;
-    }
-    console.log(`\n--- Hnijící zprávy (bez odpovědi, starší než ${hodiny}h) ---`);
-    console.log(`Konverzací: ${messages.length}\n`);
-    messages.forEach((msg, i) => {
-      const fmt = formatMessage(msg);
-      const age = Math.round((Date.now() - msg.sent_at) / (1000 * 60 * 60));
-      const label = msg.conversationName || msg.conversationPhone || msg.conversationId;
-      const count = msg.rottingCount > 1 ? ` (${msg.rottingCount} zpráv)` : '';
-      console.log(`${i + 1}. [${formatDate(msg.sent_at)}] (${age}h) ${label}${count}: ${fmt.body}`);
-    });
-  });
-
 // Shortcut menu for the most common interactive workflows.
 program
   .command('interactive')
   .alias('i')
   .description('Interaktivní režim – hlavní menu')
   .action(async () => {
-    const { select } = require('@inquirer/prompts');
+    const { select, search, Separator } = require('@inquirer/prompts');
     const db = openDB();
     const choice = await select({
       message: 'Co chceš dělat?',
@@ -370,23 +306,21 @@ program
         { value: 'unread', name: 'Nepřečtené zprávy' },
         { value: 'last', name: 'Poslední zprávy' },
         { value: 'conv', name: 'Konverzace – zprávy z vybrané konverzace' },
-        { value: 'search-msg', name: 'Hledat v zprávách' },
+        { value: 'search', name: 'Hledat v zprávách' },
+        { value: 'unanswered', name: 'Bez odpovědi' },
         { value: 'calls', name: 'Historie hovorů' },
-        { value: 'rotting', name: 'Hnijící zprávy' },
       ],
     });
     if (choice === 'unread') {
-      const limit = 50;
-      const { total, messages } = getUnread(db, limit);
+      const result = getMessages(db, { unread: true, limit: 50 });
       console.log('\n--- Nepřečtené příchozí zprávy ---');
-      console.log(`Celkem: ${total} (zobrazeno ${messages.length})\n`);
-      printMessages(messages, { showCallAfter: true });
+      console.log(`Celkem: ${result.total} (zobrazeno ${result.messages.length})\n`);
+      printMessages(result.messages, { showCallAfter: true });
     } else if (choice === 'last') {
-      const messages = getLastMessages(db, 20);
-      console.log('\n--- Posledních 20 zpráv ---\n');
-      printMessages(messages);
+      const result = getMessages(db, { limit: 20 });
+      console.log(`\n--- Posledních ${result.messages.length} zpráv ---\n`);
+      printMessages(result.messages);
     } else if (choice === 'conv') {
-      const { search } = require('@inquirer/prompts');
       const convs = getConversations(db, { limit: 100 });
       const choices = convs.map((c) => ({
         value: c.id,
@@ -400,28 +334,23 @@ program
           return choices.filter((c) => (c.name || '').toLowerCase().includes(q)).slice(0, 25);
         },
       });
-      const result = getConversationMessages(db, convId, 15);
+      const result = getMessages(db, { conv: convId, limit: 15 });
       if (result.error) {
         console.error(result.error);
       } else {
         console.log(`\n--- ${result.conversationName || convId} ---\n`);
         printMessages(result.messages, { showConv: false, showDir: true });
       }
-    } else if (choice === 'search-msg') {
-      const { search, Separator } = require('@inquirer/prompts');
+    } else if (choice === 'search') {
       const msgId = await search({
         message: 'Hledat v zprávách (piš – výsledky se zobrazují živě)',
         source: async (input) => {
-          if (!input || input.trim().length < 2) {
-            return [];
-          }
-          const { messages: msgs, total } = searchMessagesFTS(db, input.trim(), 15);
-          if (msgs.length === 0) {
-            return [];
-          }
+          if (!input || input.trim().length < 2) return [];
+          const result = getMessages(db, { search: input.trim(), limit: 15 });
+          if (result.messages.length === 0) return [];
           return [
-            new Separator(`Nalezeno ${total} zpráv (zobrazeno ${msgs.length})`),
-            ...msgs.map((m) => ({
+            new Separator(`Nalezeno ${result.total} zpráv (zobrazeno ${result.messages.length})`),
+            ...result.messages.map((m) => ({
               value: m.id,
               name: `${formatDate(m.sent_at)} ${(m.conversationName || m.conversationId)}: ${(m.body || '').slice(0, 50)}...`,
               description: (m.body || '').slice(0, 100),
@@ -438,24 +367,27 @@ program
           console.log(`\n${msg.body}`);
         }
       }
+    } else if (choice === 'unanswered') {
+      const result = getMessages(db, { unanswered: true, olderThan: 24, limit: 30 });
+      if (result.messages.length === 0) {
+        console.log('\nŽádné zprávy bez odpovědi.');
+      } else {
+        console.log('\n--- Bez odpovědi ---\n');
+        result.messages.forEach((msg, idx) => {
+          const fmt = formatMessage(msg);
+          const age = Math.round((Date.now() - msg.sent_at) / (1000 * 60 * 60));
+          const label = msg.conversationName || msg.conversationPhone || msg.conversationId;
+          const count = msg.rottingCount > 1 ? ` (${msg.rottingCount} zpráv)` : '';
+          console.log(`${idx + 1}. [${formatDate(msg.sent_at)}] (${age}h) ${label}${count}: ${fmt.body}`);
+        });
+      }
     } else if (choice === 'calls') {
       const calls = getCalls(db, 20);
       console.log('\n--- Posledních 20 hovorů ---\n');
-      calls.forEach((c, i) => {
+      calls.forEach((c, idx) => {
         const dir = (c.direction || '').toLowerCase() === 'incoming' ? '↓' : '↑';
-        console.log(`${i + 1}. [${formatDate(c.timestamp)}] 📞${dir} ${c.conversationName || '?'}  ${c.status}`);
+        console.log(`${idx + 1}. [${formatDate(c.timestamp)}] 📞${dir} ${c.conversationName || '?'}  ${c.status}`);
       });
-    } else if (choice === 'rotting') {
-      const messages = getRotting(db, 24);
-      if (messages.length === 0) {
-        console.log('\nŽádné hnijící zprávy.');
-      } else {
-        console.log('\n--- Hnijící zprávy ---\n');
-        messages.forEach((msg, i) => {
-          const fmt = formatMessage(msg);
-          console.log(`${i + 1}. ${msg.conversationName || msg.conversationId}: ${fmt.body}`);
-        });
-      }
     }
   });
 

@@ -148,7 +148,36 @@ describe('parseDateToTs', () => {
     expect(d.getSeconds()).toBe(59);
   });
 
-  it('returns null for invalid string', () => {
-    expect(parseDateToTs('not-a-date')).toBeNull();
+  it('parses relative offset in minutes', () => {
+    const before = Date.now() - 10 * 60 * 1000;
+    const ts = parseDateToTs('10m');
+    const after = Date.now() - 10 * 60 * 1000;
+    expect(ts).toBeGreaterThanOrEqual(after);
+    expect(ts).toBeLessThanOrEqual(before + 50);
+  });
+
+  it('parses relative offset in hours', () => {
+    const before = Date.now() - 5 * 60 * 60 * 1000;
+    const ts = parseDateToTs('5h');
+    expect(ts).toBeGreaterThanOrEqual(before - 50);
+    expect(ts).toBeLessThanOrEqual(before + 50);
+  });
+
+  it('parses relative offset in days', () => {
+    const before = Date.now() - 3 * 24 * 60 * 60 * 1000;
+    const ts = parseDateToTs('3d');
+    expect(ts).toBeGreaterThanOrEqual(before - 50);
+    expect(ts).toBeLessThanOrEqual(before + 50);
+  });
+
+  it('ignores endOfDay for relative offsets', () => {
+    const ts1 = parseDateToTs('5h', false);
+    const ts2 = parseDateToTs('5h', true);
+    expect(Math.abs(ts1 - ts2)).toBeLessThan(100);
+  });
+
+  it('throws on invalid string', () => {
+    expect(() => parseDateToTs('blbost')).toThrow('Neplatný formát data');
+    expect(() => parseDateToTs('not-a-date')).toThrow('Neplatný formát data');
   });
 });
