@@ -4,7 +4,7 @@
  * MCP (Model Context Protocol) server for browsing a local Signal Desktop database.
  *
  * Exposes the same read-only query functionality as the CLI via stdio transport.
- * Tools: get_messages, get_conversations, get_calls, get_message_by_id.
+ * Tools: get_messages, get_conversations, get_calls, get_message_by_id, get_phone.
  *
  * IMPORTANT: No console.log — stdout is the JSON-RPC channel.
  */
@@ -57,7 +57,7 @@ server.tool(
   'Search and filter Signal messages. Supports full-text search, conversation filter, unread/unanswered filters, date ranges (ISO or relative like 5h/3d), and direction filters.',
   {
     search: z.string().optional().describe('Full-text search query (spaces=OR, commas=AND, prefix matching)'),
-    conv: z.string().optional().describe('Conversation name, phone number, or UUID to filter by'),
+    conv: z.string().optional().describe('Conversation filter: name (searches all matches), =exact name, or UUID'),
     unread: z.boolean().optional().describe('Only unread incoming messages'),
     unanswered: z.boolean().optional().describe('Only unanswered incoming messages'),
     olderThan: z.number().optional().describe('Hours threshold for unanswered filter (default 24)'),

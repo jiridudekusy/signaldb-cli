@@ -65,9 +65,15 @@ Both source and test files use ESM (`import`/`export`). The project has `"type":
 
 `toFTS5Query()` converts user-friendly syntax: spaces = OR, commas = AND, each term gets a `*` suffix for prefix matching. Example: `"ahoj svete, deadline"` becomes `"(ahoj* OR svete*) AND deadline*"`.
 
-## Conversation ID detection
+## Conversation ID detection and multi-conv search
 
-`getMessages()` uses a heuristic to distinguish conversation IDs from names: if the `--conv` value matches `/^[0-9a-f]+(-[0-9a-f]+){3,}$/i` (hex groups separated by dashes, 4+ groups), it's treated as a direct ID. Otherwise, it's searched by name via `findConversations()`.
+`getMessages()` resolves the `--conv` value in three ways:
+
+1. **UUID** — matches `/^[0-9a-f]+(-[0-9a-f]+){3,}$/i` (hex groups separated by dashes, 4+ groups) → treated as a direct conversation ID.
+2. **Exact name** — prefix `=` (e.g. `=USY HoT`) → `findConversations(db, name, { exact: true })`, returns exactly one conversation or throws.
+3. **Fuzzy name** — everything else → `findConversations(db, name)`, returns all matching conversations. Messages are queried across all matches using `IN (?, ?, ...)` clause.
+
+When multiple conversations match a fuzzy search, `conversationName` is set to `"<query> (<N> konverzací)"`.
 
 ## Maintenance checklist
 

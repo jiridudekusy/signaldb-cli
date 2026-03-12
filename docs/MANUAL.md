@@ -54,7 +54,7 @@ Klíč zjistíš příkazem `signal-db-cli decrypt` (macOS), nebo ho najdeš v S
 
 | Přepínač | Popis |
 |----------|-------|
-| `--conv <name>` | Filtr na konverzaci (název, telefon nebo UUID) |
+| `--conv <name>` | Filtr na konverzaci – hledá podle části názvu (prohledá všechny shody), `=Přesný název` pro jednu konverzaci, nebo UUID |
 | `--unread` | Jen nepřečtené příchozí zprávy |
 | `--unanswered [hours]` | Bez odpovědi, starší než N hodin (default 24) |
 | `--from <date>` | Od data (ISO např. 2025-01-15, nebo relativní: 5h, 3d, 10m) |
@@ -78,9 +78,15 @@ signal-db-cli messages --unread
 # Posledních 20 zpráv
 signal-db-cli messages
 
-# Zprávy z konverzace (podle části názvu)
+# Zprávy z konverzace (podle části názvu – prohledá všechny shody)
 signal-db-cli messages --conv "Tomas"
 signal-db-cli messages --conv SMARTA -n 10
+
+# Přesná shoda názvu konverzace (prefix =)
+signal-db-cli messages --conv "=USY HoT"
+
+# Konverzace podle UUID
+signal-db-cli messages --conv "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 
 # Full-text vyhledávání v zprávách
 signal-db-cli messages "deadline"
@@ -130,6 +136,16 @@ Full-text vyhledávání v příkazu `messages [query]`:
 - **Čárka** = AND – zpráva musí obsahovat všechny termy (`ahoj, deadline` = ahoj A deadline)
 - **Částečná shoda** – automaticky; `aho` najde „ahoj", „ahojky", `dead` najde „deadline"
 - Kombinace: `ahoj deadline, meeting` = (ahoj NEBO deadline) A meeting
+
+## Filtr konverzace (`--conv`)
+
+Přepínač `--conv` podporuje tři režimy:
+
+1. **Hledání podle části názvu** (`--conv "Tomas"`) — najde všechny konverzace, jejichž název obsahuje zadaný text, a prohledá zprávy napříč všemi shodami. Pokud je shoda jediná, zobrazí se název konverzace.
+2. **Přesná shoda** (`--conv "=USY HoT"`) — prefix `=` vynutí přesnou shodu názvu. Vrátí zprávy pouze z jedné konverzace.
+3. **UUID** (`--conv "a1b2c3d4-e5f6-7890-abcd-ef1234567890"`) — přímé ID konverzace.
+
+Pokud hledání nenajde žádnou konverzaci, příkaz skončí chybou.
 
 ## Interaktivní režim
 

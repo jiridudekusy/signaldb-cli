@@ -112,7 +112,7 @@ program
   .alias('msg')
   .description('Zprávy s filtry (full-text, konverzace, nepřečtené, bez odpovědi, datum)')
   .argument('[query]', 'full-text hledání v těle zpráv')
-  .option('--conv <name>', 'filtr na konverzaci (název nebo ID)')
+  .option('--conv <name>', 'filtr na konverzaci (název, =přesný název, nebo UUID)')
   .option('--unread', 'jen nepřečtené příchozí')
   .option('--unanswered [hours]', 'bez odpovědi, starší než N hodin (default 24)')
   .option('--from <date>', 'od data (ISO např. 2025-01-15)')
