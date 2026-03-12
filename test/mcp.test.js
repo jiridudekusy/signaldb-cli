@@ -87,6 +87,22 @@ function createTestServer() {
     }
   );
 
+  server.tool(
+    'get_phone',
+    'Look up phone numbers by contact name.',
+    {
+      query: z.string(),
+    },
+    async (params) => {
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({ contacts: [{ name: 'Test', phone: '+420123' }], query: params.query }),
+        }],
+      };
+    }
+  );
+
   return server;
 }
 
@@ -104,7 +120,7 @@ describe('MCP Server', () => {
     const { client } = await createConnectedPair();
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
-    expect(names).toEqual(['get_calls', 'get_conversations', 'get_message_by_id', 'get_messages']);
+    expect(names).toEqual(['get_calls', 'get_conversations', 'get_message_by_id', 'get_messages', 'get_phone']);
   });
 
   it('get_messages tool has correct parameters', async () => {
@@ -156,5 +172,14 @@ describe('MCP Server', () => {
     const result = await client.callTool({ name: 'get_calls', arguments: { limit: 10 } });
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.params.limit).toBe(10);
+  });
+
+  it('get_phone returns contacts', async () => {
+    const { client } = await createConnectedPair();
+    const result = await client.callTool({ name: 'get_phone', arguments: { query: 'Test' } });
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.contacts).toHaveLength(1);
+    expect(parsed.contacts[0].phone).toBe('+420123');
+    expect(parsed.query).toBe('Test');
   });
 });

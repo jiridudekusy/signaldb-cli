@@ -178,6 +178,26 @@ server.tool(
   }
 );
 
+// --- Tool: get_phone ---
+server.tool(
+  'get_phone',
+  'Look up phone numbers by contact name.',
+  {
+    query: z.string().describe('Contact name to search for'),
+  },
+  async (params) => {
+    const convs = findConversations(db, params.query).filter((c) => c.e164);
+    const contacts = convs.map((c) => ({ name: c.name, phone: c.e164 }));
+
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({ contacts }, null, 2),
+      }],
+    };
+  }
+);
+
 // Connect via stdio
 const transport = new StdioServerTransport();
 await server.connect(transport);

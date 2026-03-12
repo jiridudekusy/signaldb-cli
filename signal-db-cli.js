@@ -273,6 +273,30 @@ program
     });
   });
 
+// Phone number lookup by contact name.
+program
+  .command('phone')
+  .description('Vyhledat telefonní číslo podle jména')
+  .argument('<query>', 'jméno kontaktu')
+  .action(async (query, _options, cmd) => {
+    const opts = cmd.parent ? cmd.parent.opts() : {};
+    const json = opts.json;
+    const db = openDB();
+    const convs = findConversations(db, query).filter((c) => c.e164);
+    if (json) {
+      output({ contacts: convs.map((c) => ({ name: c.name, phone: c.e164 })) }, { json: true });
+      return;
+    }
+    if (convs.length === 0) {
+      console.log(`Žádný kontakt s číslem neodpovídá "${query}"`);
+      return;
+    }
+    console.log(`\n--- Kontakty pro "${query}" ---\n`);
+    convs.forEach((c) => {
+      console.log(`  ${c.name || '(bez názvu)'}  ${c.e164}`);
+    });
+  });
+
 // Call history shown independently from message timelines.
 program
   .command('calls')
