@@ -1,12 +1,15 @@
 {
   "name": "signal-db-cli",
   "version": "0.1.0",
+  "type": "module",
   "description": "CLI pro práci s lokální šifrovanou databází Signal Desktop",
   "bin": {
-    "signal-db-cli": "./signal-db-cli.js"
+    "signal-db-cli": "./signal-db-cli.js",
+    "signal-db-mcp": "./signal-db-mcp.js"
   },
   "files": [
     "signal-db-cli.js",
+    "signal-db-mcp.js",
     "lib/",
     "docs/"
   ],
@@ -31,9 +34,11 @@
   },
   "dependencies": {
     "@inquirer/prompts": "^8.2.1",
+    "@modelcontextprotocol/sdk": "^1.0.0",
     "@signalapp/better-sqlite3": "^9.0.13",
     "commander": "^14.0.3",
     "dotenv": "^17.3.1",
-    "update-notifier": "^7.3.1"
+    "update-notifier": "^7.3.1",
+    "zod": "^3.23.0"
   }
 }

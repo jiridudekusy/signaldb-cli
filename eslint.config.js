@@ -1,11 +1,11 @@
-const globals = require('globals');
+import globals from 'globals';
 
-module.exports = [
+export default [
   {
     files: ['**/*.js'],
     languageOptions: {
-      ecmaVersion: 2022,
-      sourceType: 'commonjs',
+      ecmaVersion: 'latest',
+      sourceType: 'module',
       globals: {
         ...globals.node,
       },
@@ -13,12 +13,6 @@ module.exports = [
     rules: {
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],
       'no-console': 'off',
-    },
-  },
-  {
-    files: ['test/**/*.js'],
-    languageOptions: {
-      sourceType: 'module',
     },
   },
   {

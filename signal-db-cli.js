@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-'use strict';
 
 /**
  * CLI entrypoint for browsing a local Signal Desktop database.
@@ -12,15 +11,19 @@
  * Database access and SQL queries live in `lib/signal-db.js`.
  */
 
-const os = require('os');
-const path = require('path');
-const { Command } = require('commander');
-const pkg = require('./package.json');
+import os from 'os';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { Command } from 'commander';
+import dotenv from 'dotenv';
+import pkg from './package.json' with { type: 'json' };
 
-require('dotenv').config({ quiet: true }); // local .env first
-require('dotenv').config({ path: path.join(os.homedir(), '.signal-db-cli', '.env'), quiet: true }); // fallback to global
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const {
+dotenv.config({ quiet: true }); // local .env first
+dotenv.config({ path: path.join(os.homedir(), '.signal-db-cli', '.env'), quiet: true }); // fallback to global
+
+import {
   openDB,
   formatDate,
   formatMessage,
@@ -30,7 +33,7 @@ const {
   getMessageById,
   getConversations,
   getCalls,
-} = require('./lib/signal-db');
+} from './lib/signal-db.js';
 
 /** Exit early when a DB-backed command is invoked without the decryption key. */
 function checkEnv() {
@@ -126,7 +129,7 @@ program
     // Interactive conversation picker when --conv used with -i or without value
     let convFilter = options.conv;
     if (interactive && !convFilter) {
-      const { search } = require('@inquirer/prompts');
+      const { search } = await import('@inquirer/prompts');
       const convs = getConversations(db, { limit: 100 });
       const choices = convs.map((c) => ({
         value: c.id,
@@ -145,7 +148,7 @@ program
 
     // Interactive FTS search when -i and no query
     if (interactive && !query && !options.unread && !options.unanswered && !convFilter) {
-      const { search, Separator } = require('@inquirer/prompts');
+      const { search, Separator } = await import('@inquirer/prompts');
       const msgId = await search({
         message: 'Hledat v zprávách (piš – výsledky se zobrazují živě)',
         source: async (input) => {
@@ -298,7 +301,7 @@ program
   .alias('i')
   .description('Interaktivní režim – hlavní menu')
   .action(async () => {
-    const { select, search, Separator } = require('@inquirer/prompts');
+    const { select, search, Separator } = await import('@inquirer/prompts');
     const db = openDB();
     const choice = await select({
       message: 'Co chceš dělat?',
@@ -396,7 +399,7 @@ program
   .command('manual')
   .description('Rozšířená dokumentace')
   .action(async () => {
-    const fs = require('fs');
+    const fs = await import('fs');
     const manualPath = path.join(__dirname, 'docs', 'MANUAL.md');
     if (fs.existsSync(manualPath)) {
       console.log(fs.readFileSync(manualPath, 'utf8'));
@@ -410,9 +413,9 @@ program
   .command('decrypt')
   .description('Zjistit dešifrovací klíč z Signal Desktop (macOS)')
   .action(async () => {
-    const crypto = require('crypto');
-    const { execSync } = require('child_process');
-    const fs = require('fs');
+    const crypto = await import('crypto');
+    const { execSync } = await import('child_process');
+    const fs = await import('fs');
 
     const signalDir =
       process.env.SIGNAL_DIR ||
