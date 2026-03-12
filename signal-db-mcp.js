@@ -68,34 +68,34 @@ server.tool(
     limit: z.number().optional().describe('Max results (default 20)'),
   },
   async (params) => {
-    const result = getMessages(db, {
-      search: params.search,
-      conv: params.conv,
-      unread: params.unread ?? false,
-      unanswered: params.unanswered ?? false,
-      olderThan: params.olderThan ?? 24,
-      from: params.from,
-      to: params.to,
-      incoming: params.incoming ?? false,
-      outgoing: params.outgoing ?? false,
-      limit: params.limit ?? 20,
-    });
+    try {
+      const result = getMessages(db, {
+        search: params.search,
+        conv: params.conv,
+        unread: params.unread ?? false,
+        unanswered: params.unanswered ?? false,
+        olderThan: params.olderThan ?? 24,
+        from: params.from,
+        to: params.to,
+        incoming: params.incoming ?? false,
+        outgoing: params.outgoing ?? false,
+        limit: params.limit ?? 20,
+      });
 
-    if (result.error) {
-      return { content: [{ type: 'text', text: result.error }], isError: true };
+      const messages = result.messages.map((m) => ({
+        ...m,
+        date: formatDate(m.sent_at),
+      }));
+
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({ messages, total: result.total, conversationName: result.conversationName }, null, 2),
+        }],
+      };
+    } catch (err) {
+      return { content: [{ type: 'text', text: err.message }], isError: true };
     }
-
-    const messages = result.messages.map((m) => ({
-      ...m,
-      date: formatDate(m.sent_at),
-    }));
-
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({ messages, total: result.total, conversationName: result.conversationName }, null, 2),
-      }],
-    };
   }
 );
 
@@ -111,7 +111,10 @@ server.tool(
   async (params) => {
     let convs;
     if (params.query) {
-      convs = findConversations(db, params.query);
+      convs = findConversations(db, params.query, {
+        type: params.type ?? null,
+        limit: params.limit ?? 20,
+      });
     } else {
       convs = getConversations(db, {
         type: params.type ?? null,

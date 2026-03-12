@@ -153,16 +153,20 @@ program
         message: 'Hledat v zprávách (piš – výsledky se zobrazují živě)',
         source: async (input) => {
           if (!input || input.trim().length < 2) return [];
-          const result = getMessages(db, { search: input.trim(), from: options.from, to: options.to, limit });
-          if (result.messages.length === 0) return [];
-          return [
-            new Separator(`Nalezeno ${result.total} zpráv (zobrazeno ${result.messages.length})`),
-            ...result.messages.map((m) => ({
-              value: m.id,
-              name: `${formatDate(m.sent_at)} ${(m.conversationName || m.conversationId)}: ${(m.body || '').slice(0, 50)}...`,
-              description: (m.body || '').slice(0, 100),
-            })),
-          ];
+          try {
+            const result = getMessages(db, { search: input.trim(), from: options.from, to: options.to, limit });
+            if (result.messages.length === 0) return [];
+            return [
+              new Separator(`Nalezeno ${result.total} zpráv (zobrazeno ${result.messages.length})`),
+              ...result.messages.map((m) => ({
+                value: m.id,
+                name: `${formatDate(m.sent_at)} ${(m.conversationName || m.conversationId)}: ${(m.body || '').slice(0, 50)}...`,
+                description: (m.body || '').slice(0, 100),
+              })),
+            ];
+          } catch {
+            return [];
+          }
         },
       });
       if (msgId) {
@@ -191,11 +195,6 @@ program
       outgoing: options.outgoing || false,
       limit,
     });
-
-    if (result.error) {
-      console.error(result.error);
-      process.exit(1);
-    }
 
     if (json) {
       output(result, { json: true });
@@ -362,27 +361,27 @@ program
         },
       });
       const result = getMessages(db, { conv: convId, limit: 15 });
-      if (result.error) {
-        console.error(result.error);
-      } else {
-        console.log(`\n--- ${result.conversationName || convId} ---\n`);
-        printMessages(result.messages, { showConv: false, showDir: true });
-      }
+      console.log(`\n--- ${result.conversationName || convId} ---\n`);
+      printMessages(result.messages, { showConv: false, showDir: true });
     } else if (choice === 'search') {
       const msgId = await search({
         message: 'Hledat v zprávách (piš – výsledky se zobrazují živě)',
         source: async (input) => {
           if (!input || input.trim().length < 2) return [];
-          const result = getMessages(db, { search: input.trim(), limit: 15 });
-          if (result.messages.length === 0) return [];
-          return [
-            new Separator(`Nalezeno ${result.total} zpráv (zobrazeno ${result.messages.length})`),
-            ...result.messages.map((m) => ({
-              value: m.id,
-              name: `${formatDate(m.sent_at)} ${(m.conversationName || m.conversationId)}: ${(m.body || '').slice(0, 50)}...`,
-              description: (m.body || '').slice(0, 100),
-            })),
-          ];
+          try {
+            const result = getMessages(db, { search: input.trim(), limit: 15 });
+            if (result.messages.length === 0) return [];
+            return [
+              new Separator(`Nalezeno ${result.total} zpráv (zobrazeno ${result.messages.length})`),
+              ...result.messages.map((m) => ({
+                value: m.id,
+                name: `${formatDate(m.sent_at)} ${(m.conversationName || m.conversationId)}: ${(m.body || '').slice(0, 50)}...`,
+                description: (m.body || '').slice(0, 100),
+              })),
+            ];
+          } catch {
+            return [];
+          }
         },
       });
       if (msgId) {

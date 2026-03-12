@@ -9,7 +9,7 @@ Signal DB CLI je nástroj pro práci s lokální šifrovanou databází Signal D
 ## Předpoklady
 
 - Nainstalovaný Signal Desktop
-- Node.js 18+
+- Node.js 24
 - Dešifrovací klíč z `config.json` Signal aplikace
 
 ## Umístění databáze
@@ -32,27 +32,35 @@ Formát `.env`:
 SIGNAL_DECRYPTION_KEY=REDACTED_KEY
 ```
 
-Klíč najdeš v Signal složce v souboru `config.json` (klíč `key` nebo `encryptedKey` – podle verze Signalu).
+Klíč zjistíš příkazem `signal-db-cli decrypt` (macOS), nebo ho najdeš v Signal složce v souboru `config.json` (klíč `key` – podle verze Signalu).
 
 **Poznámka:** Před použitím je třeba zavřít Signal Desktop, jinak může být databáze uzamčená.
 
 ## Přehled příkazů
 
-### Základní příkazy
+### Příkazy
 
 | Příkaz | Popis |
 |--------|-------|
-| `unread [n]` | Nepřečtené příchozí zprávy |
-| `last [n]` | Posledních n zpráv ze všech konverzací |
-| `conv [query] [n]` | Zprávy z konverzace (query = název nebo ID) |
-| `search <query>` | Vyhledat konverzace podle názvu |
-| `search-msg <query>` | Full-text vyhledávání v těle zpráv |
-| `convs` | Seznam konverzací |
+| `messages [query]` (alias: `msg`) | Zprávy s filtry (full-text, konverzace, nepřečtené, bez odpovědi, datum) |
+| `convs [query]` | Seznam konverzací (volitelně hledat podle názvu) |
+| `phone <query>` | Vyhledat telefonní číslo podle jména kontaktu |
 | `calls [n]` | Historie hovorů |
-| `rotting [hodiny]` | Hnijící zprávy (bez odpovědi) |
-| `interactive`, `i` | Interaktivní režim |
+| `interactive` (alias: `i`) | Interaktivní režim – hlavní menu |
+| `decrypt` | Zjistit dešifrovací klíč z Signal Desktop (macOS) |
 | `manual` | Tato dokumentace |
-| `help [příkaz]` | Nápověda k příkazu |
+
+### Filtry pro `messages`
+
+| Přepínač | Popis |
+|----------|-------|
+| `--conv <name>` | Filtr na konverzaci (název, telefon nebo UUID) |
+| `--unread` | Jen nepřečtené příchozí zprávy |
+| `--unanswered [hours]` | Bez odpovědi, starší než N hodin (default 24) |
+| `--from <date>` | Od data (ISO např. 2025-01-15, nebo relativní: 5h, 3d, 10m) |
+| `--to <date>` | Do data (ISO nebo relativní) |
+| `--incoming` | Jen příchozí zprávy |
+| `--outgoing` | Jen odchozí zprávy |
 
 ### Globální přepínače
 
@@ -64,56 +72,87 @@ Klíč najdeš v Signal složce v souboru `config.json` (klíč `key` nebo `encr
 ## Příklady
 
 ```bash
-# Nepřečtené zprávy (posledních 50)
-signal-db-cli unread
+# Nepřečtené zprávy
+signal-db-cli messages --unread
 
 # Posledních 20 zpráv
-signal-db-cli last 20
+signal-db-cli messages
 
 # Zprávy z konverzace (podle části názvu)
-signal-db-cli conv SMARTA 10
-signal-db-cli conv "Tomas Horáček" 5
-
-# Interaktivní výběr konverzace
-signal-db-cli conv -i
-
-# Vyhledání konverzací
-signal-db-cli search CI/CD
+signal-db-cli messages --conv "Tomas"
+signal-db-cli messages --conv SMARTA -n 10
 
 # Full-text vyhledávání v zprávách
-signal-db-cli search-msg "deadline"
-# Rozsah dat: --from, --to (ISO např. 2025-01-15)
-signal-db-cli search-msg "deadline" --from 2025-01-01 --to 2025-02-17
-# Syntax: mezera = OR, čárka = AND
-# "ahoj deadline" = ahoj NEBO deadline
-# "ahoj, deadline" = ahoj A deadline
+signal-db-cli messages "deadline"
 
-# Seznam konverzací
-signal-db-cli convs
+# Rozsah dat
+signal-db-cli messages "deadline" --from 2025-01-01 --to 2025-02-17
+
+# Relativní datum (posledních 5 hodin)
+signal-db-cli messages --from 5h
+
+# Jen příchozí zprávy
+signal-db-cli messages --incoming
+
+# Bez odpovědi (starší než 24h)
+signal-db-cli messages --unanswered
+
+# Bez odpovědi (starší než 48h)
+signal-db-cli messages --unanswered 48
+
+# Vyhledání konverzací
+signal-db-cli convs "CI/CD"
+
+# Seznam skupinových konverzací
 signal-db-cli convs --type group
+
+# Telefonní číslo podle jména
+signal-db-cli phone "Novák"
 
 # Historie hovorů
 signal-db-cli calls 30
 
-# Hnijící zprávy (starší než 24h bez odpovědi)
-signal-db-cli rotting 24
+# Interaktivní režim
+signal-db-cli interactive
+
+# Zjistit dešifrovací klíč (macOS)
+signal-db-cli decrypt
 
 # JSON výstup pro další zpracování
-signal-db-cli unread --json | jq '.messages[0].body'
+signal-db-cli messages --unread --json | jq '.messages[0].body'
 ```
+
+## Syntax vyhledávání
+
+Full-text vyhledávání v příkazu `messages [query]`:
+
+- **Mezera** = OR – zpráva obsahuje alespoň jeden term (`ahoj deadline` = ahoj NEBO deadline)
+- **Čárka** = AND – zpráva musí obsahovat všechny termy (`ahoj, deadline` = ahoj A deadline)
+- **Částečná shoda** – automaticky; `aho` najde „ahoj", „ahojky", `dead` najde „deadline"
+- Kombinace: `ahoj deadline, meeting` = (ahoj NEBO deadline) A meeting
 
 ## Interaktivní režim
 
 Spusť `signal-db-cli interactive` nebo `signal-db-cli i` pro hlavní menu. Z nabídky vybereš akci:
 
-- **Nepřečtené zprávy** – zobrazí nepřečtené
-- **Poslední zprávy** – zobrazí poslední
+- **Nepřečtené zprávy** – zobrazí nepřečtené příchozí
+- **Poslední zprávy** – zobrazí posledních 20 zpráv
 - **Konverzace** – vybereš konverzaci psaním (filtruje se seznam), pak zobrazí zprávy
 - **Hledat v zprávách** – zadáš text, vybereš z výsledků a zobrazí detail
+- **Bez odpovědi** – zobrazí zprávy bez odpovědi
 - **Historie hovorů** – zobrazí hovory
-- **Hnijící zprávy** – zobrazí zprávy bez odpovědi
 
-U příkazů `conv` a `search-msg` můžeš použít `-i` pro interaktivní výběr přímo v rámci příkazu.
+U příkazu `messages` můžeš použít `-i` pro interaktivní výběr konverzace nebo fulltextové hledání.
+
+## MCP Server
+
+Nástroj obsahuje MCP server (`signal-db-mcp`) pro integraci s AI nástroji. Spouští se jako:
+
+```bash
+signal-db-mcp
+```
+
+Dostupné nástroje: `get_messages`, `get_conversations`, `get_calls`, `get_message_by_id`, `get_phone`.
 
 ## Aktualizace
 
@@ -129,20 +168,10 @@ Pro vypnutí kontroly nastav `NO_UPDATE_NOTIFIER=1`.
 ## Troubleshooting
 
 ### Chybí SIGNAL_DECRYPTION_KEY
-Zkontroluj, že máš v `.env` nebo v prostředí nastavenou proměnnou `SIGNAL_DECRYPTION_KEY` s platným klíčem z Signal `config.json`.
+Zkontroluj, že máš v `.env` nebo v prostředí nastavenou proměnnou `SIGNAL_DECRYPTION_KEY` s platným hex klíčem. Můžeš ho zjistit příkazem `signal-db-cli decrypt`.
 
 ### Databáze je uzamčená
 Zavři Signal Desktop před použitím nástroje. Signal drží exkluzivní zámek na databázi.
 
 ### SQLITE_BUSY
 Databáze je použita jiným procesem. Zavři Signal Desktop a zkus znovu.
-
-### Syntax vyhledávání (search-msg)
-- **--from, --to** – rozsah dat (ISO formát, např. `2025-01-15`)
-- **Mezera** = OR – zpráva obsahuje alespoň jeden term (`ahoj deadline` = ahoj NEBO deadline)
-- **Čárka** = AND – zpráva musí obsahovat všechny termy (`ahoj, deadline` = ahoj A deadline)
-- **Částečná shoda** – automaticky; `aho` najde „ahoj", „ahojky", `dead` najde „deadline"
-- Kombinace: `ahoj deadline, meeting` = (ahoj NEBO deadline) A meeting
-
-### Žádné výsledky u search-msg
-FTS (full-text search) vyžaduje, aby zprávy obsahovaly hledaný text. Zkus jiný výraz nebo zkrácenou podobu.

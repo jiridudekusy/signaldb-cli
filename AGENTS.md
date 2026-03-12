@@ -1,0 +1,26 @@
+- This repository contains a CLI for inspecting a local encrypted Signal Desktop database.
+- User-facing CLI output and prompts are in Czech; keep that language unless a task explicitly changes it.
+- Database access must remain read-only.
+- `signal-db-cli.js` is the main entrypoint and owns command registration, terminal output, manual display, and the `decrypt` command.
+- `signal-db-mcp.js` is the MCP server exposing the same query functionality via stdio transport.
+- `lib/signal-db.js` contains database opening, queries, FTS helpers, and formatting helpers. It throws errors for invalid inputs.
+- `test/formatting.test.js` covers pure helper behavior.
+- `test/mcp.test.js` covers MCP tool registration and schema validation.
+- `docs/MANUAL.md` is the end-user manual and must be updated when CLI behavior changes.
+- Keep changes focused and minimal.
+- Preserve the current separation of responsibilities between CLI orchestration and data-layer helpers.
+- Prefer adding pure functions in `lib/signal-db.js` when logic can be tested without opening the Signal database.
+- Do not add write operations against the Signal database.
+- The project uses ESM (`"type": "module"` in package.json). Keep ESM style in all source files.
+- Use Node.js 24 (`.nvmrc`). The native addon may fail to compile on Node 25+.
+- Native addon installs and rebuilds require `--ignore-scripts=false` because of repo npm settings.
+- Common commands:
+  - `npm run lint`
+  - `npm run lint:fix`
+  - `npm test`
+  - `npm run test:watch`
+  - `npm ci --ignore-scripts=false`
+  - `npm rebuild @signalapp/better-sqlite3 --ignore-scripts=false`
+- Prefer targeted validation first.
+- Keep tests database-independent where possible.
+- If you add logic that can be unit-tested, place it so Vitest can exercise it without requiring a live Signal installation.

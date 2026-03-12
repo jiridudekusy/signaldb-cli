@@ -116,7 +116,7 @@ async function createConnectedPair() {
 }
 
 describe('MCP Server', () => {
-  it('registers all 4 tools', async () => {
+  it('registers all 5 tools', async () => {
     const { client } = await createConnectedPair();
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();

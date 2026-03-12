@@ -9,7 +9,7 @@ CLI tool for browsing a local encrypted Signal Desktop database (read-only). All
 ## Commands
 
 ```bash
-npm run lint          # ESLint (flat config, CJS)
+npm run lint          # ESLint (flat config, ESM)
 npm run lint:fix      # ESLint with auto-fix
 npm test              # vitest run
 npm run test:watch    # vitest in watch mode
@@ -21,28 +21,60 @@ npm ci --ignore-scripts=false
 npm rebuild @signalapp/better-sqlite3 --ignore-scripts=false
 ```
 
-Node 20 required (`.nvmrc`). The native addon does not compile on Node 25+.
+Node 24 required (`.nvmrc`). The native addon does not compile on Node 25+.
 
 ## Architecture
 
 ```
-signal-db-cli.js          CLI entrypoint (commander commands, output formatting)
+signal-db-cli.js          CLI entrypoint (commander commands, output formatting, decrypt command)
+signal-db-mcp.js          MCP server (stdio transport, exposes same queries as CLI)
   └── lib/signal-db.js    Data layer (DB open, SQL queries, formatters)
        └── @signalapp/better-sqlite3 (SQLCipher)
-
-decrypt-signal-key.js     Standalone utility to extract the SQLCipher key from macOS Keychain
 ```
 
-**signal-db-cli.js** registers commands and handles terminal output. All database logic lives in **lib/signal-db.js** which exports pure query functions (`getUnread`, `getLastMessages`, `searchMessagesFTS`, etc.) and pure formatting functions (`formatDate`, `formatMessage`, `formatCall`, `toFTS5Query`).
+**signal-db-cli.js** registers commands and handles terminal output. All database logic lives in **lib/signal-db.js** which exports query functions (`getMessages`, `getConversations`, `getCalls`, `findConversations`, `getMessageById`) and pure formatting functions (`formatDate`, `formatMessage`, `formatCall`, `toFTS5Query`, `parseDateToTs`).
+
+**signal-db-mcp.js** is an MCP server exposing tools: `get_messages`, `get_conversations`, `get_calls`, `get_message_by_id`, `get_phone`.
 
 The database is always opened read-only. The decryption key comes from `SIGNAL_DECRYPTION_KEY` env var (loaded via dotenv from `.env` or `~/.signal-db-cli/.env`).
+
+## Error handling
+
+`lib/signal-db.js` is the data layer and **throws errors** for all failure conditions (conflicting options, unknown conversations, bad date formats, SQL errors). It never returns error objects — always throws.
+
+Callers are responsible for catching:
+- **CLI (`signal-db-cli.js`)**: top-level `parseAsync().catch()` handles all thrown errors and prints them to stderr. Interactive search `source` callbacks catch locally and return empty results (so the search UI doesn't crash).
+- **MCP (`signal-db-mcp.js`)**: each tool handler wraps `lib/signal-db.js` calls in try-catch and returns `{ isError: true, content: [{ type: 'text', text: err.message }] }`.
+
+When adding new queries or modifying existing ones in `lib/signal-db.js`, always throw on error — never return `{ error: ... }` objects.
+
+## SQL security
+
+All user values are passed through parameterized queries (`?` placeholders) — never interpolated into SQL strings. Specific safeguards:
+- **SQLCipher key**: validated as hex-only string before interpolation into `PRAGMA key` (the only place where string interpolation is used in SQL).
+- **LIKE patterns**: `findConversations()` escapes `%`, `_`, `\` in user input with `ESCAPE '\'` clause.
+- **FTS5 queries**: `toFTS5Query()` output is passed via `MATCH ?` (parameterized), preventing SQL injection. FTS5 syntax errors propagate as thrown errors.
 
 ## Testing
 
 Tests cover only the pure functions (formatters, query builders) that don't require a database connection. Importing `lib/signal-db.js` loads the native SQLCipher module but doesn't open any database, so tests work without the Signal DB present.
 
-Test file uses ESM imports (`import from`) even though the source is CJS — Vitest handles the transform.
+Both source and test files use ESM (`import`/`export`). The project has `"type": "module"` in package.json.
 
 ## FTS5 Query Syntax
 
 `toFTS5Query()` converts user-friendly syntax: spaces = OR, commas = AND, each term gets a `*` suffix for prefix matching. Example: `"ahoj svete, deadline"` becomes `"(ahoj* OR svete*) AND deadline*"`.
+
+## Conversation ID detection
+
+`getMessages()` uses a heuristic to distinguish conversation IDs from names: if the `--conv` value matches `/^[0-9a-f]+(-[0-9a-f]+){3,}$/i` (hex groups separated by dashes, 4+ groups), it's treated as a direct ID. Otherwise, it's searched by name via `findConversations()`.
+
+## Maintenance checklist
+
+**IMPORTANT:** When changing CLI commands, options, or behavior, always update these files:
+
+1. **`docs/MANUAL.md`** — end-user documentation. Must reflect the current CLI surface (commands, options, examples). Written in Czech.
+2. **This file (`CLAUDE.md`)** — update the Architecture section (export list, tool list), Error handling, or any other section that describes the changed behavior.
+3. **`AGENTS.md`** — keep aligned with this file. If you change guidance here, mirror it there.
+4. **`test/mcp.test.js`** — if MCP tools are added/removed, update the tool count assertion (`'registers all N tools'`) and add/remove the corresponding test.
+5. **Node version** — pinned in `.nvmrc`, `.github/workflows/ci.yml`, `.github/workflows/publish.yml`, this file, `AGENTS.md`, and `docs/MANUAL.md`. Change all at once.
