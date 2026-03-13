@@ -18,7 +18,7 @@ Read-only access to your local Signal Desktop database — from the terminal or 
 npm install -g signal-db-cli --ignore-scripts=false
 ```
 
-**2. Extract the decryption key** (close Signal Desktop first):
+**2. Extract the decryption key:**
 
 ```bash
 signal-db-cli decrypt
@@ -222,6 +222,32 @@ Three modes:
 
 ---
 
+## Testing
+
+### Unit Tests
+
+```bash
+npm test
+```
+
+Covers pure formatting functions and MCP tool registration. No database required.
+
+### Manual CLI Tests (AI-assisted)
+
+The file `test/AI_MANUAL_TESTING.md` contains a comprehensive test plan (16 groups, 30+ cases) designed to be executed by an AI coding agent against a real Signal Desktop database.
+
+**How to run:**
+
+1. Make sure the decryption key is saved: `signal-db-cli decrypt`
+2. Open the project in an AI coding tool (Claude Code, Cursor, etc.)
+3. Ask the agent: *"Run the manual test plan from `test/AI_MANUAL_TESTING.md` against my real Signal DB"*
+
+The agent will execute each CLI command, compare output against the expected patterns, and report any failures.
+
+**What it covers:** conversations, messages (direction/unread/unanswered/date range/FTS/combined filters), phone lookup, calls, JSON output, decrypt check, manual page, MCP server handshake, and error resilience.
+
+---
+
 ## License
 
-MIT
+AGPL-3.0 — see [LICENSE](LICENSE).

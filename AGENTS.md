@@ -20,7 +20,7 @@
   - `npm test`
   - `npm run test:watch`
   - `npm ci --ignore-scripts=false`
-  - `npm rebuild @signalapp/better-sqlite3 --ignore-scripts=false`
+  - `npm rebuild @signalapp/sqlcipher --ignore-scripts=false`
 - Prefer targeted validation first.
 - Keep tests database-independent where possible.
 - If you add logic that can be unit-tested, place it so Vitest can exercise it without requiring a live Signal installation.

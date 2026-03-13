@@ -28,8 +28,6 @@ The key is stored in the `SIGNAL_DECRYPTION_KEY` environment variable. The tool 
 1. **Local `.env`** in the current directory
 2. **Global config** in `~/.signal-db-cli/.env`
 
-**Note:** Close Signal Desktop before use, otherwise the database may be locked.
-
 ## Command Overview
 
 ### Commands
@@ -180,6 +178,4 @@ To disable the check, set `NO_UPDATE_NOTIFIER=1`.
 ### Missing SIGNAL_DECRYPTION_KEY
 Run `signal-db-cli decrypt` to extract and save the key automatically. Alternatively, set the `SIGNAL_DECRYPTION_KEY` environment variable in `.env` or `~/.signal-db-cli/.env` with a valid hex key.
 
-### Database is locked
-Close Signal Desktop before using the tool. Signal holds an exclusive lock on the database.
 

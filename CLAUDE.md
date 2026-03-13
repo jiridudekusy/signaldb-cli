@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-CLI tool for browsing a local encrypted Signal Desktop database (read-only). All UI text is in English. The database is opened via SQLCipher (`@signalapp/better-sqlite3`).
+CLI tool for browsing a local encrypted Signal Desktop database (read-only). All UI text is in English. The database is opened via SQLCipher (`@signalapp/sqlcipher`).
 
 ## Commands
 
@@ -18,7 +18,7 @@ npm run test:watch    # vitest in watch mode
 **Important:** `.npmrc` has `ignore-scripts=true`. When installing/rebuilding native addons, use `--ignore-scripts=false`:
 ```bash
 npm ci --ignore-scripts=false
-npm rebuild @signalapp/better-sqlite3 --ignore-scripts=false
+npm rebuild @signalapp/sqlcipher --ignore-scripts=false
 ```
 
 Node 24 required (`.nvmrc`). The native addon does not compile on Node 25+.
@@ -29,7 +29,7 @@ Node 24 required (`.nvmrc`). The native addon does not compile on Node 25+.
 signal-db-cli.js          CLI entrypoint (commander commands, output formatting, decrypt command)
 signal-db-mcp.js          MCP server (stdio transport, exposes same queries as CLI)
   └── lib/signal-db.js    Data layer (DB open, SQL queries, formatters)
-       └── @signalapp/better-sqlite3 (SQLCipher)
+       └── @signalapp/sqlcipher (SQLCipher)
 ```
 
 **signal-db-cli.js** registers commands and handles terminal output. It also owns the `decrypt` command which extracts the Signal decryption key on all platforms (macOS Keychain, Linux GNOME Keyring/KWallet, Windows DPAPI) and saves it to `~/.signal-db-cli/.env`. All database logic lives in **lib/signal-db.js** which exports query functions (`getMessages`, `getConversations`, `getCalls`, `findConversations`, `getMessageById`) and pure formatting functions (`formatDate`, `formatMessage`, `formatCall`, `toFTS5Query`, `parseDateToTs`).
