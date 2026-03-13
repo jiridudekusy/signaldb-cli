@@ -53,6 +53,9 @@ The key is stored in the `SIGNAL_DECRYPTION_KEY` environment variable. The tool 
 | `--to <date>` | To date (ISO or relative) |
 | `--incoming` | Only incoming messages |
 | `--outgoing` | Only outgoing messages |
+| `-A, --after <n>` | Show N messages after each search match (grep-style) |
+| `-B, --before <n>` | Show N messages before each search match (grep-style) |
+| `-C, --context <n>` | Show N messages before and after each match (shorthand for -A N -B N) |
 
 ### Global Flags
 
@@ -97,6 +100,15 @@ signal-db-cli messages --unanswered
 
 # Unanswered (older than 48h)
 signal-db-cli messages --unanswered 48
+
+# Search with context: 2 messages before and after each match
+signal-db-cli messages "deadline" -C 2
+
+# 3 messages before each match only
+signal-db-cli messages "deadline" -B 3
+
+# Context with conversation filter
+signal-db-cli messages "deadline" --conv "Alice" -C 3
 
 # Search conversations
 signal-db-cli convs "CI/CD"

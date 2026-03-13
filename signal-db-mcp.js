@@ -21,6 +21,7 @@ import {
   openDB,
   formatDate,
   getMessages,
+  getMessagesWithContext,
   getConversations,
   findConversations,
   getCalls,
@@ -66,10 +67,12 @@ server.tool(
     incoming: z.boolean().optional().describe('Only incoming messages'),
     outgoing: z.boolean().optional().describe('Only outgoing messages'),
     limit: z.number().optional().describe('Max results (default 20)'),
+    before: z.number().optional().describe('Show N messages before each search match (grep-style -B)'),
+    after: z.number().optional().describe('Show N messages after each search match (grep-style -A)'),
   },
   async (params) => {
     try {
-      const result = getMessages(db, {
+      const msgOptions = {
         search: params.search,
         conv: params.conv,
         unread: params.unread ?? false,
@@ -80,7 +83,26 @@ server.tool(
         incoming: params.incoming ?? false,
         outgoing: params.outgoing ?? false,
         limit: params.limit ?? 20,
-      });
+      };
+
+      const ctxBefore = params.before ?? 0;
+      const ctxAfter = params.after ?? 0;
+
+      if ((ctxBefore > 0 || ctxAfter > 0) && !params.search) {
+        return { content: [{ type: 'text', text: 'Context options (before/after) require a search query' }], isError: true };
+      }
+
+      if (ctxBefore > 0 || ctxAfter > 0) {
+        const result = getMessagesWithContext(db, { ...msgOptions, before: ctxBefore, after: ctxAfter });
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      }
+
+      const result = getMessages(db, msgOptions);
 
       const messages = result.messages.map((m) => ({
         ...m,

@@ -219,7 +219,41 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 
 ---
 
-## 16. Error resilience
+## 16. Messages — context (grep-style -A/-B/-C)
+
+```bash
+./signal-db-cli.js messages "ahoj" -C 2 --limit 3
+```
+**Expected:** Groups of messages around each match. Matches prefixed with `>`, context with space. Groups separated by `--`. Chronological order within each group.
+
+```bash
+./signal-db-cli.js messages "ahoj" -B 3 --limit 3
+```
+**Expected:** 3 messages before each match shown, no messages after.
+
+```bash
+./signal-db-cli.js messages "ahoj" -A 1 -B 1 --limit 3
+```
+**Expected:** 1 message before and 1 after each match.
+
+```bash
+./signal-db-cli.js messages "ahoj" -C 2 --conv "AI" --limit 3
+```
+**Expected:** Context shown only within the matching conversation(s).
+
+```bash
+./signal-db-cli.js messages "ahoj" -C 2 --limit 3 --json
+```
+**Expected:** Valid JSON with `{ "groups": [...], "total": <number> }`. Each group has `messages` array with `isMatch` boolean on each message.
+
+```bash
+./signal-db-cli.js messages -C 2
+```
+**Expected:** Error: `Context options (-A/-B/-C) require a search query`
+
+---
+
+## 17. Error resilience
 
 ```bash
 SIGNAL_DECRYPTION_KEY=badkey ./signal-db-cli.js convs --limit 1

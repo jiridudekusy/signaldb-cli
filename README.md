@@ -150,6 +150,9 @@ Once the MCP server is connected, you can ask your AI assistant things like:
 | `--to <date>` | To date (ISO or relative) |
 | `--incoming` | Only incoming messages |
 | `--outgoing` | Only outgoing messages |
+| `-A, --after <n>` | Show N messages after each search match (grep-style) |
+| `-B, --before <n>` | Show N messages before each search match (grep-style) |
+| `-C, --context <n>` | Show N messages before and after each match (shorthand for -A N -B N) |
 
 ### Global Flags
 
@@ -177,6 +180,12 @@ signal-db-cli messages --conv "=Project Alpha"
 
 # Full-text search
 signal-db-cli messages "deadline"
+
+# Search with context (2 messages before and after each match)
+signal-db-cli messages "deadline" -C 2
+
+# Context with conversation filter
+signal-db-cli messages "deadline" --conv "Alice" -B 3
 
 # Date range
 signal-db-cli messages --from 2025-01-01 --to 2025-02-17
@@ -251,3 +260,9 @@ The agent will execute each CLI command, compare output against the expected pat
 ## License
 
 AGPL-3.0 — see [LICENSE](LICENSE).
+
+---
+
+## Changelog
+
+See [CHANGELOG.md](https://github.com/jiridudekusy/signaldb-cli/blob/main/CHANGELOG.md) for release notes and version history.

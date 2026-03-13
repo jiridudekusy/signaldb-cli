@@ -26,6 +26,8 @@ function createTestServer() {
       incoming: z.boolean().optional(),
       outgoing: z.boolean().optional(),
       limit: z.number().optional(),
+      before: z.number().optional(),
+      after: z.number().optional(),
     },
     async (params) => {
       return {
@@ -134,6 +136,8 @@ describe('MCP Server', () => {
     expect(props).toContain('from');
     expect(props).toContain('to');
     expect(props).toContain('limit');
+    expect(props).toContain('before');
+    expect(props).toContain('after');
   });
 
   it('get_messages returns result with params', async () => {

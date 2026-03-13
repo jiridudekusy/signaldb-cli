@@ -32,7 +32,7 @@ signal-db-mcp.js          MCP server (stdio transport, exposes same queries as C
        └── @signalapp/sqlcipher (SQLCipher)
 ```
 
-**signal-db-cli.js** registers commands and handles terminal output. It also owns the `decrypt` command which extracts the Signal decryption key on all platforms (macOS Keychain, Linux GNOME Keyring/KWallet, Windows DPAPI) and saves it to `~/.signal-db-cli/.env`. All database logic lives in **lib/signal-db.js** which exports query functions (`getMessages`, `getConversations`, `getCalls`, `findConversations`, `getMessageById`) and pure formatting functions (`formatDate`, `formatMessage`, `formatCall`, `toFTS5Query`, `parseDateToTs`).
+**signal-db-cli.js** registers commands and handles terminal output. It also owns the `decrypt` command which extracts the Signal decryption key on all platforms (macOS Keychain, Linux GNOME Keyring/KWallet, Windows DPAPI) and saves it to `~/.signal-db-cli/.env`. All database logic lives in **lib/signal-db.js** which exports query functions (`getMessages`, `getMessagesWithContext`, `getConversations`, `getCalls`, `findConversations`, `getMessageById`) and pure formatting/utility functions (`formatDate`, `formatMessage`, `formatCall`, `toFTS5Query`, `parseDateToTs`, `mergeContextGroups`).
 
 **signal-db-mcp.js** is an MCP server exposing tools: `get_messages`, `get_conversations`, `get_calls`, `get_message_by_id`, `get_phone`.
 
@@ -83,4 +83,5 @@ When multiple conversations match a fuzzy search, `conversationName` is set to `
 2. **This file (`CLAUDE.md`)** — update the Architecture section (export list, tool list), Error handling, or any other section that describes the changed behavior.
 3. **`AGENTS.md`** — keep aligned with this file. If you change guidance here, mirror it there.
 4. **`test/mcp.test.js`** — if MCP tools are added/removed, update the tool count assertion (`'registers all N tools'`) and add/remove the corresponding test.
-5. **Node version** — pinned in `.nvmrc`, `.github/workflows/ci.yml`, `.github/workflows/publish.yml`, this file, `AGENTS.md`, and `docs/MANUAL.md`. Change all at once.
+5. **`test/AI_MANUAL_TESTING.md`** — manual test cases for AI-assisted testing. When adding or changing CLI features, add corresponding test scenarios.
+6. **Node version** — pinned in `.nvmrc`, `.github/workflows/ci.yml`, `.github/workflows/publish.yml`, this file, `AGENTS.md`, and `docs/MANUAL.md`. Change all at once.

@@ -29,6 +29,7 @@ import {
   formatMessage,
   formatCall,
   getMessages,
+  getMessagesWithContext,
   findConversations,
   getMessageById,
   getConversations,
@@ -64,6 +65,22 @@ function printMessages(messages, options = {}) {
       const callHint = showCallAfter && msg.has_call_after ? ' 📞 call made' : '';
       console.log(`${i + 1}. [${formatDate(msg.sent_at)}] ${label ? label + ': ' : ''}${prefix}${fmt.body}${callHint}`);
     }
+  });
+}
+
+/** Render context groups (grep-style -A/-B/-C output). */
+function printContextGroups(groups, { multiConv = false } = {}) {
+  groups.forEach((group, gi) => {
+    if (multiConv) {
+      console.log(`--- ${group.conversationName} ---`);
+    }
+    if (gi > 0 && !multiConv) console.log('--');
+    group.messages.forEach((msg) => {
+      const fmt = formatMessage(msg);
+      const marker = msg.isMatch ? '>' : ' ';
+      console.log(`${marker} [${formatDate(msg.sent_at)}] ${fmt.dir} ${fmt.body}`);
+    });
+    if (multiConv && gi < groups.length - 1) console.log('');
   });
 }
 
@@ -119,11 +136,23 @@ program
   .option('--to <date>', 'to date (ISO e.g. 2025-02-17)')
   .option('--incoming', 'only incoming')
   .option('--outgoing', 'only outgoing')
+  .option('-A, --after <n>', 'show N messages after each match', parseInt)
+  .option('-B, --before <n>', 'show N messages before each match', parseInt)
+  .option('-C, --context <n>', 'show N messages before and after each match', parseInt)
   .action(async (query, options, cmd) => {
     const opts = cmd.parent ? cmd.parent.opts() : {};
     const limit = opts.limit ?? 20;
     const interactive = opts.interactive;
     const json = opts.json;
+    // Resolve -C into before/after
+    const ctxBefore = options.before || options.context || 0;
+    const ctxAfter = options.after || options.context || 0;
+    const hasContext = ctxBefore > 0 || ctxAfter > 0;
+
+    if (hasContext && !query) {
+      throw new Error('Context options (-A/-B/-C) require a search query');
+    }
+
     const db = openDB();
 
     // Interactive conversation picker when --conv used with -i or without value
@@ -183,7 +212,7 @@ program
 
     const unansweredHours = options.unanswered === true ? 24 : parseInt(options.unanswered, 10) || undefined;
 
-    const result = getMessages(db, {
+    const msgOptions = {
       conv: convFilter,
       unread: options.unread || false,
       unanswered: !!options.unanswered,
@@ -194,7 +223,32 @@ program
       incoming: options.incoming || false,
       outgoing: options.outgoing || false,
       limit,
-    });
+    };
+
+    // Context mode: fetch matches with surrounding messages
+    if (hasContext) {
+      const result = getMessagesWithContext(db, { ...msgOptions, before: ctxBefore, after: ctxAfter });
+
+      if (json) {
+        output(result, { json: true });
+        return;
+      }
+
+      const parts = [];
+      if (convFilter) parts.push(result.conversationName || convFilter);
+      if (query) parts.push(`"${query}"`);
+      if (options.incoming) parts.push('incoming');
+      if (options.outgoing) parts.push('outgoing');
+      console.log(`\n--- ${parts.join(' | ')} (${result.total} matches) ---\n`);
+
+      if (result.groups.length === 0) return;
+
+      const convIds = new Set(result.groups.map((g) => g.messages[0]?.conversationId));
+      printContextGroups(result.groups, { multiConv: convIds.size > 1 });
+      return;
+    }
+
+    const result = getMessages(db, msgOptions);
 
     if (json) {
       output(result, { json: true });

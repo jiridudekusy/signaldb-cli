@@ -5,6 +5,7 @@ import {
   formatCall,
   toFTS5Query,
   parseDateToTs,
+  mergeContextGroups,
 } from '../lib/signal-db.js';
 
 describe('formatDate', () => {
@@ -179,5 +180,85 @@ describe('parseDateToTs', () => {
   it('throws on invalid string', () => {
     expect(() => parseDateToTs('blbost')).toThrow('Invalid date format');
     expect(() => parseDateToTs('not-a-date')).toThrow('Invalid date format');
+  });
+});
+
+describe('mergeContextGroups', () => {
+  const msg = (id, sentAt, convId = 'c1', convName = 'Alice') => ({
+    id, sent_at: sentAt, conversationId: convId, conversationName: convName, body: `msg-${id}`, type: 'incoming',
+  });
+
+  it('single match with before/after context', () => {
+    const matches = [msg('m1', 100)];
+    const contextMap = new Map([
+      ['m1', { before: [msg('b1', 90), msg('b2', 80)], after: [msg('a1', 110)] }],
+    ]);
+    const groups = mergeContextGroups(matches, contextMap);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].messages).toHaveLength(4);
+    expect(groups[0].messages.map((m) => m.id)).toEqual(['b2', 'b1', 'm1', 'a1']);
+    expect(groups[0].messages[2].isMatch).toBe(true);
+    expect(groups[0].messages[0].isMatch).toBe(false);
+  });
+
+  it('two non-overlapping matches produce two groups', () => {
+    const matches = [msg('m1', 100), msg('m2', 300)];
+    const contextMap = new Map([
+      ['m1', { before: [msg('b1', 90)], after: [msg('a1', 110)] }],
+      ['m2', { before: [msg('b2', 290)], after: [msg('a2', 310)] }],
+    ]);
+    const groups = mergeContextGroups(matches, contextMap);
+    expect(groups).toHaveLength(2);
+    expect(groups[0].messages.map((m) => m.id)).toEqual(['b1', 'm1', 'a1']);
+    expect(groups[1].messages.map((m) => m.id)).toEqual(['b2', 'm2', 'a2']);
+  });
+
+  it('overlapping windows merge into one group', () => {
+    const matches = [msg('m1', 100), msg('m2', 120)];
+    const contextMap = new Map([
+      ['m1', { before: [msg('b1', 90)], after: [msg('shared', 110), msg('a1', 120)] }],
+      ['m2', { before: [msg('shared', 110)], after: [msg('a2', 130)] }],
+    ]);
+    const groups = mergeContextGroups(matches, contextMap);
+    expect(groups).toHaveLength(1);
+    // shared appears once (dedup), m2 at 120 = a1 at 120 should also dedup
+    const ids = groups[0].messages.map((m) => m.id);
+    expect(new Set(ids).size).toBe(ids.length); // no duplicates
+    expect(groups[0].messages.find((m) => m.id === 'm1').isMatch).toBe(true);
+    expect(groups[0].messages.find((m) => m.id === 'm2').isMatch).toBe(true);
+    expect(groups[0].messages.find((m) => m.id === 'shared').isMatch).toBe(false);
+  });
+
+  it('matches in different conversations produce separate groups', () => {
+    const matches = [msg('m1', 100, 'c1', 'Alice'), msg('m2', 100, 'c2', 'Bob')];
+    const contextMap = new Map([
+      ['m1', { before: [], after: [] }],
+      ['m2', { before: [], after: [] }],
+    ]);
+    const groups = mergeContextGroups(matches, contextMap);
+    expect(groups).toHaveLength(2);
+    expect(groups[0].conversationName).toBe('Alice');
+    expect(groups[1].conversationName).toBe('Bob');
+  });
+
+  it('match with no context returns single-message group', () => {
+    const matches = [msg('m1', 100)];
+    const contextMap = new Map();
+    const groups = mergeContextGroups(matches, contextMap);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].messages).toHaveLength(1);
+    expect(groups[0].messages[0].isMatch).toBe(true);
+  });
+
+  it('preserves isMatch when context message is also a match', () => {
+    const matches = [msg('m1', 100), msg('m2', 110)];
+    const contextMap = new Map([
+      ['m1', { before: [], after: [msg('m2', 110)] }],
+      ['m2', { before: [msg('m1', 100)], after: [] }],
+    ]);
+    const groups = mergeContextGroups(matches, contextMap);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].messages).toHaveLength(2);
+    expect(groups[0].messages.every((m) => m.isMatch)).toBe(true);
   });
 });
