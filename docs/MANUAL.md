@@ -64,6 +64,19 @@ The key is stored in the `SIGNAL_DECRYPTION_KEY` environment variable. The tool 
 - `-n, --limit <number>` – limit number of results
 - `-V, --version` – show version
 
+## Message Output
+
+Messages are rendered as `[date] ▶/◀ body`, where `▶` marks incoming and `◀` outgoing messages (the direction arrows appear in per-conversation and context views).
+
+**Group chats** also show who sent each message, since the direction arrow alone doesn't identify the author:
+
+```
+[24. 6. 2026 8:55:18] ▶ Stanislav Mikulecký: Message body
+[24. 6. 2026 9:11:24] ◀ Me: My reply
+```
+
+Incoming messages show the sender's contact name (falling back to phone number); outgoing messages are labelled `Me`. Private (1:1) conversations don't show a sender. In JSON output, group messages carry `conversationType: "group"` and `senderName` (null for outgoing — use `type` to detect own messages).
+
 ## Examples
 
 ```bash

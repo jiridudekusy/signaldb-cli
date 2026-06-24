@@ -62,8 +62,9 @@ function printMessages(messages, options = {}) {
     } else {
       const fmt = formatMessage(msg);
       const prefix = showDir ? `${fmt.dir} ` : '';
+      const senderStr = fmt.sender ? `${fmt.sender}: ` : '';
       const callHint = showCallAfter && msg.has_call_after ? ' 📞 call made' : '';
-      console.log(`${i + 1}. [${formatDate(msg.sent_at)}] ${label ? label + ': ' : ''}${prefix}${fmt.body}${callHint}`);
+      console.log(`${i + 1}. [${formatDate(msg.sent_at)}] ${label ? label + ': ' : ''}${prefix}${senderStr}${fmt.body}${callHint}`);
     }
   });
 }
@@ -78,7 +79,8 @@ function printContextGroups(groups, { multiConv = false } = {}) {
     group.messages.forEach((msg) => {
       const fmt = formatMessage(msg);
       const marker = msg.isMatch ? '>' : ' ';
-      console.log(`${marker} [${formatDate(msg.sent_at)}] ${fmt.dir} ${fmt.body}`);
+      const senderStr = fmt.sender ? `${fmt.sender}: ` : '';
+      console.log(`${marker} [${formatDate(msg.sent_at)}] ${fmt.dir} ${senderStr}${fmt.body}`);
     });
     if (multiConv && gi < groups.length - 1) console.log('');
   });
@@ -201,8 +203,10 @@ program
       if (msgId) {
         const msg = getMessageById(db, msgId);
         if (msg) {
+          const fmt = formatMessage(msg);
           console.log(`\n--- Message ---`);
           console.log(`Conversation: ${msg.conversationName || msg.conversationId}`);
+          if (fmt.sender) console.log(`From: ${fmt.sender}`);
           console.log(`Date: ${formatDate(msg.sent_at)}`);
           console.log(`\n${msg.body}`);
         }
@@ -279,7 +283,8 @@ program
         const age = Math.round((Date.now() - msg.sent_at) / (1000 * 60 * 60));
         const label = msg.conversationName || msg.conversationPhone || msg.conversationId;
         const count = msg.rottingCount > 1 ? ` (${msg.rottingCount} messages)` : '';
-        console.log(`${i + 1}. [${formatDate(msg.sent_at)}] (${age}h) ${label}${count}: ${fmt.body}`);
+        const senderStr = fmt.sender ? `${fmt.sender}: ` : '';
+        console.log(`${i + 1}. [${formatDate(msg.sent_at)}] (${age}h) ${label}${count}: ${senderStr}${fmt.body}`);
       });
     } else {
       printMessages(result.messages, { showConv, showDir, showCallAfter });
@@ -441,8 +446,10 @@ program
       if (msgId) {
         const msg = getMessageById(db, msgId);
         if (msg) {
+          const fmt = formatMessage(msg);
           console.log(`\n--- Message ---`);
           console.log(`Conversation: ${msg.conversationName || msg.conversationId}`);
+          if (fmt.sender) console.log(`From: ${fmt.sender}`);
           console.log(`Date: ${formatDate(msg.sent_at)}`);
           console.log(`\n${msg.body}`);
         }
@@ -458,7 +465,8 @@ program
           const age = Math.round((Date.now() - msg.sent_at) / (1000 * 60 * 60));
           const label = msg.conversationName || msg.conversationPhone || msg.conversationId;
           const count = msg.rottingCount > 1 ? ` (${msg.rottingCount} messages)` : '';
-          console.log(`${idx + 1}. [${formatDate(msg.sent_at)}] (${age}h) ${label}${count}: ${fmt.body}`);
+          const senderStr = fmt.sender ? `${fmt.sender}: ` : '';
+          console.log(`${idx + 1}. [${formatDate(msg.sent_at)}] (${age}h) ${label}${count}: ${senderStr}${fmt.body}`);
         });
       }
     } else if (choice === 'calls') {

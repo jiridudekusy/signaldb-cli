@@ -68,6 +68,26 @@ describe('formatMessage', () => {
     expect(formatMessage({ body: 'x', conversationId: 'abc' }).conv).toBe('abc');
     expect(formatMessage({ body: 'x' }).conv).toBe('?');
   });
+
+  it('has no sender for private conversations', () => {
+    const msg = { body: 'x', type: 'incoming', conversationType: 'private', senderName: 'Alice' };
+    expect(formatMessage(msg).sender).toBeNull();
+  });
+
+  it('shows incoming sender name in group conversations', () => {
+    const msg = { body: 'x', type: 'incoming', conversationType: 'group', senderName: 'Bob' };
+    expect(formatMessage(msg).sender).toBe('Bob');
+  });
+
+  it('falls back group sender to phone, then "?"', () => {
+    expect(formatMessage({ body: 'x', type: 'incoming', conversationType: 'group', senderPhone: '+420' }).sender).toBe('+420');
+    expect(formatMessage({ body: 'x', type: 'incoming', conversationType: 'group' }).sender).toBe('?');
+  });
+
+  it('labels outgoing group messages as "Me"', () => {
+    const msg = { body: 'x', type: 'outgoing', conversationType: 'group' };
+    expect(formatMessage(msg).sender).toBe('Me');
+  });
 });
 
 describe('formatCall', () => {

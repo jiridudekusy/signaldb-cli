@@ -4,6 +4,7 @@
 - `signal-db-cli.js` is the main entrypoint and owns command registration, terminal output, manual display, and the `decrypt` command.
 - `signal-db-mcp.js` is the MCP server exposing the same query functionality via stdio transport.
 - `lib/signal-db.js` contains database opening, queries (`getMessages`, `getMessagesWithContext`, `getConversations`, `getCalls`, `findConversations`, `getMessageById`), FTS helpers, formatting helpers, and pure utilities (`mergeContextGroups`). It throws errors for invalid inputs.
+- Group chats surface the message sender: message queries self-join `conversations` as `s` on `m.sourceServiceId = s.serviceId` and select `conversationType`/`senderName`/`senderPhone`. `formatMessage()` returns a `sender` field for group conversations only (incoming → contact name, outgoing → `Me`); private conversations get `sender: null`.
 - `test/formatting.test.js` covers pure helper behavior.
 - `test/mcp.test.js` covers MCP tool registration and schema validation.
 - `docs/MANUAL.md` is the end-user manual and must be updated when CLI behavior changes.

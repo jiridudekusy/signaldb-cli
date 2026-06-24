@@ -65,6 +65,12 @@ Both source and test files use ESM (`import`/`export`). The project has `"type":
 
 `toFTS5Query()` converts user-friendly syntax: spaces = OR, commas = AND, each term gets a `*` suffix for prefix matching. Example: `"hello world, deadline"` becomes `"(hello* OR world*) AND deadline*"`.
 
+## Group sender resolution
+
+Message queries (`getMessages`, `getMessagesWithContext`/`CONTEXT_SELECT`, `getMessageById`) self-join `conversations` a second time as `s` on `m.sourceServiceId = s.serviceId` to resolve the sender, and select `c.type AS conversationType`, `senderName` (COALESCE of `s.name`/`profileFullName`/`profileName`/`e164`), and `m.source AS senderPhone`.
+
+`formatMessage()` returns a `sender` field used only for **group** conversations (`conversationType === 'group'`): incoming → `senderName` (falls back to `senderPhone`, then `'?'`), outgoing → `'Me'`. Private conversations get `sender: null` and render unchanged. The CLI prints the sender as a `<sender>: ` prefix before the body; the MCP server passes the raw `conversationType`/`senderName` columns through in its JSON (own messages are identified by `type: 'outgoing'` since `senderName` is null for them).
+
 ## Conversation ID detection and multi-conv search
 
 `getMessages()` resolves the `--conv` value in three ways:

@@ -265,3 +265,27 @@ SIGNAL_DECRYPTION_KEY= ./signal-db-cli.js convs --limit 1
 ```
 **Expected:** Error: `Missing SIGNAL_DECRYPTION_KEY in .env`
 
+---
+
+## 18. Group chat sender display
+
+```bash
+./signal-db-cli.js messages --conv "=<exact group name>" --limit 5
+```
+**Expected:** Each message shows the sender after the direction arrow: incoming as `▶ <Contact Name>: ...`, outgoing as `◀ Me: ...`. Replace `<exact group name>` with a known group.
+
+```bash
+./signal-db-cli.js messages --conv "<private contact>" --limit 5
+```
+**Expected:** No sender shown — private conversations render as `▶ ...` / `◀ ...` only.
+
+```bash
+./signal-db-cli.js messages --limit 20
+```
+**Expected:** In the global list, group messages show `<Group Name>: <Sender>: body`; private messages show `<Contact>: body` (no sender).
+
+```bash
+./signal-db-cli.js messages --conv "=<exact group name>" --limit 1 --json
+```
+**Expected:** JSON message has `conversationType: "group"` and `senderName` (string for incoming, `null` for outgoing — own messages identified by `type: "outgoing"`).
+

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.0 (2026-06-24)
+
+### New Features
+
+- **Group chat sender display** — group messages now show who sent each message (`Contact Name:` for incoming, `Me:` for outgoing). Private 1:1 conversations are unchanged. Works in CLI output, `--json`, context search (`-A`/`-B`/`-C`), rotting messages, and MCP (via `conversationType`/`senderName` fields).
+
+### Maintenance
+
+- Updated dependencies (`@signalapp/sqlcipher`, MCP SDK, Commander 15, Zod 4, Vitest 4, ESLint 10, and others).
+
 ## 1.0.0 (2026-03-13)
 
 ### New Features
